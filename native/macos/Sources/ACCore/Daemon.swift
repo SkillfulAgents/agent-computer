@@ -93,6 +93,11 @@ class DaemonServer {
             }
 
             if clientFD >= 0 {
+                // Set client socket back to blocking mode
+                // (it inherits O_NONBLOCK from the server socket)
+                let clientFlags = fcntl(clientFD, F_GETFL)
+                _ = fcntl(clientFD, F_SETFL, clientFlags & ~O_NONBLOCK)
+
                 // Handle client in a background thread
                 DispatchQueue.global(qos: .userInteractive).async { [weak self] in
                     self?.handleClient(fd: clientFD)
