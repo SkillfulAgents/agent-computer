@@ -29,6 +29,9 @@ class Dispatcher {
         registerCaptureMethods()
         registerScrollMethods()
         registerFocusMethods()
+        registerFindMethods()
+        registerReadMethods()
+        registerWaitMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -709,6 +712,199 @@ class Dispatcher {
                               message: error.error?.message ?? "Unknown error")
             }
             return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Find Methods
+
+    private func registerFindMethods() {
+        register("find") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let text = req.paramString("text")
+            let role = req.paramString("role")
+            let first = req.paramBool("first") ?? false
+            let appName = req.paramString("app")
+
+            if text == nil && role == nil {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                              message: "Either text or --role is required")
+            }
+
+            let (result, error) = Find.find(
+                text: text, role: role, first: first,
+                windowRef: nil, appName: appName,
+                windowManager: self.windowManager,
+                snapshotBuilder: self.snapshotBuilder,
+                grabbedWindow: self.grabbedWindow
+            )
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            // Store ref map from the snapshot used for search
+            self.lastRefMap = self.snapshotBuilder.getRefMap()
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Read Methods
+
+    private func registerReadMethods() {
+        register("read") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            let attr = req.paramString("attr")
+            let (result, error) = Read.read(ref: ref, attr: attr, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("title") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let appMode = req.paramBool("app") ?? false
+            let (result, error) = Read.title(
+                appMode: appMode,
+                grabbedWindow: self.grabbedWindow,
+                windowManager: self.windowManager
+            )
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("is") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let state = req.paramString("state") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing state parameter")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            let (result, error) = Read.isState(state: state, ref: ref, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("box") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            let (result, error) = Read.box(ref: ref, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("children") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            let (result, error) = Read.children(ref: ref, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Wait Methods
+
+    private func registerWaitMethods() {
+        register("wait") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let timeout = req.paramInt("timeout") ?? 10000
+
+            // Wait for fixed duration
+            if let ms = req.paramInt("ms") {
+                let result = Wait.waitMs(ms: ms)
+                return .success(id: req.id, result: result)
+            }
+
+            // Wait for app
+            if let appName = req.paramString("app") {
+                let (result, error) = Wait.waitForApp(name: appName, timeout: timeout)
+                if let error = error {
+                    return .error(id: req.id, code: error.error?.code ?? -32600,
+                                  message: error.error?.message ?? "Unknown error")
+                }
+                return .success(id: req.id, result: result!)
+            }
+
+            // Wait for window
+            if let windowTitle = req.paramString("window") {
+                let (result, error) = Wait.waitForWindow(
+                    title: windowTitle, timeout: timeout,
+                    windowManager: self.windowManager
+                )
+                if let error = error {
+                    return .error(id: req.id, code: error.error?.code ?? -32600,
+                                  message: error.error?.message ?? "Unknown error")
+                }
+                return .success(id: req.id, result: result!)
+            }
+
+            // Wait for text
+            if let text = req.paramString("text") {
+                let gone = req.paramBool("gone") ?? false
+                let (result, error) = Wait.waitForText(
+                    text: text, gone: gone, timeout: timeout,
+                    grabbedWindow: self.grabbedWindow,
+                    windowManager: self.windowManager,
+                    snapshotBuilder: self.snapshotBuilder
+                )
+                if let error = error {
+                    return .error(id: req.id, code: error.error?.code ?? -32600,
+                                  message: error.error?.message ?? "Unknown error")
+                }
+                return .success(id: req.id, result: result!)
+            }
+
+            // Wait for element
+            if let ref = req.paramString("ref") {
+                let hidden = req.paramBool("hidden") ?? false
+                let enabled = req.paramBool("enabled") ?? false
+                let (result, error) = Wait.waitForElement(
+                    ref: ref, hidden: hidden, enabled: enabled,
+                    timeout: timeout, refMap: self.lastRefMap
+                )
+                if let error = error {
+                    return .error(id: req.id, code: error.error?.code ?? -32600,
+                                  message: error.error?.message ?? "Unknown error")
+                }
+                return .success(id: req.id, result: result!)
+            }
+
+            return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                          message: "wait requires: ms, --app, --window, --text, or ref")
         }
     }
 
