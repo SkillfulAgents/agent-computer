@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { resolveConfig, getDefaults, setConfigValue, resetConfig, getConfigValue } from '../../src/config.js';
 import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
@@ -45,8 +45,8 @@ describe('Config Defaults', () => {
 describe('Config File Operations', () => {
   let originalConfig: string | null = null;
 
-  beforeEach(() => {
-    // Save existing config if present
+  beforeAll(() => {
+    // Save existing config once before the suite
     try {
       originalConfig = readFileSync(CONFIG_FILE, 'utf-8');
     } catch {
@@ -54,14 +54,19 @@ describe('Config File Operations', () => {
     }
   });
 
-  afterEach(() => {
-    // Restore original config
+  afterAll(() => {
+    // Restore original config after the entire suite
     if (originalConfig !== null) {
       mkdirSync(CONFIG_DIR, { recursive: true });
       writeFileSync(CONFIG_FILE, originalConfig);
     } else {
       try { rmSync(CONFIG_FILE); } catch { /* ok */ }
     }
+  });
+
+  afterEach(() => {
+    // Reset config file after each test to avoid cross-contamination
+    resetConfig();
   });
 
   test('setConfigValue creates config file and sets value', () => {

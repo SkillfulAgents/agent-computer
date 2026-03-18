@@ -1,4 +1,5 @@
 import Foundation
+import ApplicationServices
 
 // MARK: - Method Dispatcher
 
@@ -14,11 +15,14 @@ class Dispatcher {
 
     // Managers
     let windowManager = WindowManager()
+    let snapshotBuilder = SnapshotBuilder()
+    var lastRefMap: [String: AXUIElement] = [:]
 
     init() {
         registerBuiltinMethods()
         registerAppMethods()
         registerWindowMethods()
+        registerSnapshotMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -197,6 +201,49 @@ class Dispatcher {
             }
             self.grabbedWindow = nil
             return .success(id: req.id, result: ["ok": true])
+        }
+    }
+
+    // MARK: - Snapshot Methods
+
+    private func registerSnapshotMethods() {
+        register("snapshot") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let interactive = req.paramBool("interactive") ?? false
+            let compact = req.paramBool("compact") ?? false
+            let depth = req.paramInt("depth")
+            let subtree = req.paramString("subtree")
+            let appName = req.paramString("app")
+            let pidParam = req.paramInt("pid")
+
+            let (result, error) = self.snapshotBuilder.build(
+                windowRef: self.grabbedWindow,
+                windowManager: self.windowManager,
+                interactive: interactive,
+                compact: compact,
+                depth: depth,
+                subtreeRef: subtree,
+                appName: appName,
+                pid: pidParam != nil ? pid_t(pidParam!) : nil
+            )
+
+            if let error = error {
+                // Fix the ID in the error response
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+
+            guard let result = result else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Snapshot failed")
+            }
+
+            // Store ref map and snapshot ID for subsequent commands
+            self.lastRefMap = self.snapshotBuilder.getRefMap()
+            self.lastSnapshotId = result["snapshot_id"] as? String
+
+            return .success(id: req.id, result: result)
         }
     }
 

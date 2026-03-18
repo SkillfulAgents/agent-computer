@@ -23,6 +23,7 @@ async function ensureCommandModulesLoaded(): Promise<void> {
   await import('./commands/apps.js');
   await import('./commands/windows.js');
   await import('./commands/session.js');
+  await import('./commands/snapshot.js');
 }
 
 export function getCommand(name: string): CommandHandler | undefined {

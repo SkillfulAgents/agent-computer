@@ -74,43 +74,54 @@ class DaemonServer {
 
         log("Daemon listening on \(socketPath)")
 
-        // Accept loop
-        runAcceptLoop()
+        // Use DispatchSource for accepting connections so we can
+        // run the main RunLoop (needed for NSWorkspace updates)
+        runWithDispatchSource()
 
         // Cleanup
         cleanup()
     }
 
-    private func runAcceptLoop() {
-        while !shouldShutdown {
+    private func runWithDispatchSource() {
+        let source = DispatchSource.makeReadSource(fileDescriptor: serverFD, queue: .global(qos: .userInteractive))
+
+        source.setEventHandler { [weak self] in
+            guard let self = self, !self.shouldShutdown else {
+                source.cancel()
+                return
+            }
+
             var clientAddr = sockaddr_un()
             var clientLen = socklen_t(MemoryLayout<sockaddr_un>.size)
 
             let clientFD = withUnsafeMutablePointer(to: &clientAddr) { ptr in
                 ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                    accept(serverFD, sockPtr, &clientLen)
+                    accept(self.serverFD, sockPtr, &clientLen)
                 }
             }
 
-            if clientFD >= 0 {
-                // Set client socket back to blocking mode
-                // (it inherits O_NONBLOCK from the server socket)
-                let clientFlags = fcntl(clientFD, F_GETFL)
-                _ = fcntl(clientFD, F_SETFL, clientFlags & ~O_NONBLOCK)
+            guard clientFD >= 0 else { return }
 
-                // Handle client in a background thread
-                DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-                    self?.handleClient(fd: clientFD)
-                }
-            } else if errno == EAGAIN || errno == EWOULDBLOCK {
-                // No pending connections — sleep briefly
-                Thread.sleep(forTimeInterval: 0.01)
-            } else {
-                // Accept error
-                log("Accept error: \(errno)")
-                Thread.sleep(forTimeInterval: 0.1)
+            // Set client socket back to blocking mode
+            let clientFlags = fcntl(clientFD, F_GETFL)
+            _ = fcntl(clientFD, F_SETFL, clientFlags & ~O_NONBLOCK)
+
+            // Handle client in a background thread
+            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+                self?.handleClient(fd: clientFD)
             }
         }
+
+        source.setCancelHandler { /* cleanup if needed */ }
+        source.resume()
+
+        // Run the main RunLoop — this keeps NSWorkspace and other
+        // system frameworks updated (app launches, quits, etc.)
+        while !shouldShutdown {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        }
+
+        source.cancel()
     }
 
     private func handleClient(fd: Int32) {

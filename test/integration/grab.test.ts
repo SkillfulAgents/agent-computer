@@ -6,12 +6,15 @@ function sleep(ms: number): Promise<void> {
 }
 
 describe('Grab/Ungrab Session', () => {
-  const bridge = new Bridge({ timeout: 15000 });
+  const bridge = new Bridge({ timeout: 20000 });
 
   beforeAll(async () => {
-    // Launch TextEdit for testing
-    await bridge.send('launch', { name: 'TextEdit', wait: true });
+    // Ensure clean state
+    try { await bridge.send('quit', { name: 'TextEdit' }); } catch { /* ok */ }
     await sleep(500);
+    // Launch TextEdit fresh
+    await bridge.send('launch', { name: 'TextEdit', wait: true });
+    await sleep(1500); // Give the daemon time to see the new window via RunLoop
   }, 30000);
 
   afterAll(async () => {
