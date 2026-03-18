@@ -17,6 +17,7 @@ class Dispatcher {
     let windowManager = WindowManager()
     let snapshotBuilder = SnapshotBuilder()
     var lastRefMap: [String: AXUIElement] = [:]
+    var lastSnapshotData: [String: Any]? = nil
 
     init() {
         registerBuiltinMethods()
@@ -33,6 +34,10 @@ class Dispatcher {
         registerReadMethods()
         registerWaitMethods()
         registerMenuMethods()
+        registerDialogMethods()
+        registerDragMethods()
+        registerBatchMethods()
+        registerDiffMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -364,9 +369,10 @@ class Dispatcher {
                 return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Snapshot failed")
             }
 
-            // Store ref map and snapshot ID for subsequent commands
+            // Store ref map, snapshot ID, and snapshot data for subsequent commands
             self.lastRefMap = self.snapshotBuilder.getRefMap()
             self.lastSnapshotId = result["snapshot_id"] as? String
+            self.lastSnapshotData = result
 
             return .success(id: req.id, result: result)
         }
@@ -943,6 +949,169 @@ class Dispatcher {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
                               message: error.error?.message ?? "Unknown error")
             }
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Dialog Methods
+
+    private func registerDialogMethods() {
+        register("dialog") { req in
+            let appName = req.paramString("app")
+            let (result, error) = Dialog.detect(appName: appName)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("dialog_accept") { req in
+            let appName = req.paramString("app")
+            let (result, error) = Dialog.respond(action: "accept", appName: appName)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("dialog_cancel") { req in
+            let appName = req.paramString("app")
+            let (result, error) = Dialog.respond(action: "cancel", appName: appName)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("dialog_file") { req in
+            guard let path = req.paramString("path") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                              message: "Missing path parameter")
+            }
+            let appName = req.paramString("app")
+            let (result, error) = Dialog.fileDialog(path: path, appName: appName)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Drag Methods
+
+    private func registerDragMethods() {
+        register("drag") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let fromRef = req.paramString("from_ref")
+            let fromX = req.paramDouble("from_x")
+            let fromY = req.paramDouble("from_y")
+            let toRef = req.paramString("to_ref")
+            let toX = req.paramDouble("to_x")
+            let toY = req.paramDouble("to_y")
+            let duration = req.paramDouble("duration") ?? 0.5
+            let steps = req.paramInt("steps") ?? 20
+
+            let (result, error) = Drag.drag(
+                fromRef: fromRef, fromX: fromX, fromY: fromY,
+                toRef: toRef, toX: toX, toY: toY,
+                duration: duration, steps: steps,
+                refMap: self.lastRefMap
+            )
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Batch Methods
+
+    private func registerBatchMethods() {
+        register("batch") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+
+            guard let commandsRaw = req.params?["commands"]?.value as? [Any] else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                              message: "Missing commands array")
+            }
+
+            // Parse commands array: each element should be an array [method, ...args]
+            var commands: [[Any]] = []
+            for item in commandsRaw {
+                if let arr = item as? [Any] {
+                    commands.append(arr)
+                } else {
+                    return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                                  message: "Each command must be an array")
+                }
+            }
+
+            let stopOnError = req.paramBool("stop_on_error") ?? true
+
+            let (result, error) = Batch.execute(
+                commands: commands,
+                stopOnError: stopOnError,
+                dispatcher: self
+            )
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Diff Methods
+
+    private func registerDiffMethods() {
+        register("changed") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let appName = req.paramString("app")
+            let (result, error) = Diff.changed(
+                windowRef: nil, appName: appName,
+                windowManager: self.windowManager,
+                snapshotBuilder: self.snapshotBuilder,
+                grabbedWindow: self.grabbedWindow,
+                lastSnapshotData: self.lastSnapshotData
+            )
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            // Update stored snapshot to the new one
+            self.lastRefMap = self.snapshotBuilder.getRefMap()
+            return .success(id: req.id, result: result!)
+        }
+
+        register("diff") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let appName = req.paramString("app")
+            let (result, error) = Diff.diff(
+                windowRef: nil, appName: appName,
+                windowManager: self.windowManager,
+                snapshotBuilder: self.snapshotBuilder,
+                grabbedWindow: self.grabbedWindow,
+                lastSnapshotData: self.lastSnapshotData
+            )
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            // Update stored snapshot
+            self.lastRefMap = self.snapshotBuilder.getRefMap()
             return .success(id: req.id, result: result!)
         }
     }

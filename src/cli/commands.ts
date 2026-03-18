@@ -32,6 +32,9 @@ async function ensureCommandModulesLoaded(): Promise<void> {
   await import('./commands/scroll.js');
   await import('./commands/find.js');
   await import('./commands/menu.js');
+  await import('./commands/dialog.js');
+  await import('./commands/drag.js');
+  await import('./commands/batch.js');
 }
 
 export function getCommand(name: string): CommandHandler | undefined {
