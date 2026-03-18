@@ -1,0 +1,74 @@
+import { registerCommand } from '../commands.js';
+import type { ParsedArgs } from '../parser.js';
+import type { Bridge } from '../../bridge.js';
+
+// Simple window actions: minimize, maximize, fullscreen, close, raise
+for (const cmd of ['minimize', 'maximize', 'fullscreen', 'close', 'raise'] as const) {
+  registerCommand(cmd, async (args: ParsedArgs, bridge: Bridge) => {
+    const ref = args.positional[0] || (args.flags['ref'] as string);
+    const params: Record<string, unknown> = {};
+    if (ref) params.ref = ref;
+
+    const result = await bridge.send(cmd, params);
+    return { data: result, exitCode: 0 };
+  });
+}
+
+registerCommand('move', async (args: ParsedArgs, bridge: Bridge) => {
+  const ref = args.positional[0];
+  const x = args.positional[1];
+  const y = args.positional[2];
+
+  if (!ref) {
+    return { data: { error: 'Usage: ac move <@w> <x> <y>' }, exitCode: 1 };
+  }
+
+  const params: Record<string, unknown> = { ref };
+  if (x !== undefined && y !== undefined) {
+    params.x = parseFloat(x);
+    params.y = parseFloat(y);
+  }
+
+  const result = await bridge.send('move', params);
+  return { data: result, exitCode: 0 };
+});
+
+registerCommand('resize', async (args: ParsedArgs, bridge: Bridge) => {
+  const ref = args.positional[0];
+  const w = args.positional[1];
+  const h = args.positional[2];
+
+  if (!ref) {
+    return { data: { error: 'Usage: ac resize <@w> <w> <h>' }, exitCode: 1 };
+  }
+
+  const params: Record<string, unknown> = { ref };
+  if (w !== undefined && h !== undefined) {
+    params.width = parseFloat(w);
+    params.height = parseFloat(h);
+  }
+
+  const result = await bridge.send('resize', params);
+  return { data: result, exitCode: 0 };
+});
+
+registerCommand('bounds', async (args: ParsedArgs, bridge: Bridge) => {
+  const ref = args.positional[0];
+  if (!ref) {
+    return { data: { error: 'Usage: ac bounds <@w> <x> <y> <w> <h> | ac bounds <@w> --preset <name>' }, exitCode: 1 };
+  }
+
+  const params: Record<string, unknown> = { ref };
+
+  if (args.flags['preset']) {
+    params.preset = args.flags['preset'];
+  } else if (args.positional.length >= 5) {
+    params.x = parseFloat(args.positional[1]);
+    params.y = parseFloat(args.positional[2]);
+    params.width = parseFloat(args.positional[3]);
+    params.height = parseFloat(args.positional[4]);
+  }
+
+  const result = await bridge.send('bounds', params);
+  return { data: result, exitCode: 0 };
+});

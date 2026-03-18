@@ -205,6 +205,121 @@ class Dispatcher {
             self.grabbedWindow = nil
             return .success(id: req.id, result: ["ok": true])
         }
+
+        // Window action methods
+        for method in ["minimize", "maximize", "fullscreen", "close", "raise"] {
+            register(method) { [weak self] req in
+                guard let self = self else {
+                    return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+                }
+                let ref = req.paramString("ref") ?? self.grabbedWindow
+                guard let ref = ref else {
+                    return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                                  message: "Missing window ref. Grab a window or pass --ref.")
+                }
+
+                // Refresh windows to ensure ref is valid
+                if self.windowManager.getWindowInfo(ref: ref) == nil {
+                    _ = self.windowManager.listWindows()
+                }
+
+                let (result, error): ([String: Any]?, RPCResponse?)
+                switch method {
+                case "minimize": (result, error) = self.windowManager.minimize(ref: ref)
+                case "maximize": (result, error) = self.windowManager.maximize(ref: ref)
+                case "fullscreen": (result, error) = self.windowManager.fullscreen(ref: ref)
+                case "close": (result, error) = self.windowManager.close(ref: ref)
+                case "raise": (result, error) = self.windowManager.raise(ref: ref)
+                default: return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Unknown method")
+                }
+
+                if let error = error {
+                    return .error(id: req.id, code: error.error?.code ?? -32600,
+                                  message: error.error?.message ?? "Unknown error")
+                }
+                return .success(id: req.id, result: result!)
+            }
+        }
+
+        register("move") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let ref = req.paramString("ref") ?? self.grabbedWindow
+            guard let ref = ref else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing window ref")
+            }
+            guard let x = req.paramDouble("x"), let y = req.paramDouble("y") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing x or y coordinate")
+            }
+            if self.windowManager.getWindowInfo(ref: ref) == nil {
+                _ = self.windowManager.listWindows()
+            }
+            let (result, error) = self.windowManager.move(ref: ref, x: x, y: y)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("resize") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let ref = req.paramString("ref") ?? self.grabbedWindow
+            guard let ref = ref else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing window ref")
+            }
+            guard let w = req.paramDouble("width"), let h = req.paramDouble("height") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing width or height")
+            }
+            if self.windowManager.getWindowInfo(ref: ref) == nil {
+                _ = self.windowManager.listWindows()
+            }
+            let (result, error) = self.windowManager.resize(ref: ref, width: w, height: h)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("bounds") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let ref = req.paramString("ref") ?? self.grabbedWindow
+            guard let ref = ref else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing window ref")
+            }
+            if self.windowManager.getWindowInfo(ref: ref) == nil {
+                _ = self.windowManager.listWindows()
+            }
+
+            // Preset mode
+            if let preset = req.paramString("preset") {
+                let (result, error) = self.windowManager.applyPreset(ref: ref, preset: preset)
+                if let error = error {
+                    return .error(id: req.id, code: error.error?.code ?? -32600,
+                                  message: error.error?.message ?? "Unknown error")
+                }
+                return .success(id: req.id, result: result!)
+            }
+
+            // Explicit bounds
+            guard let x = req.paramDouble("x"), let y = req.paramDouble("y"),
+                  let w = req.paramDouble("width"), let h = req.paramDouble("height") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                              message: "Missing bounds (x, y, width, height) or --preset")
+            }
+            let (result, error) = self.windowManager.setBounds(ref: ref, x: x, y: y, width: w, height: h)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
     }
 
     // MARK: - Snapshot Methods
