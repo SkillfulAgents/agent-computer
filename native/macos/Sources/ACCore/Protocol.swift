@@ -23,6 +23,19 @@ struct RPCRequest: Codable {
     func paramBool(_ key: String) -> Bool? {
         return params?[key]?.value as? Bool
     }
+
+    func paramDouble(_ key: String) -> Double? {
+        if let d = params?[key]?.value as? Double { return d }
+        if let i = params?[key]?.value as? Int { return Double(i) }
+        return nil
+    }
+
+    func paramStringArray(_ key: String) -> [String]? {
+        if let arr = params?[key]?.value as? [Any] {
+            return arr.compactMap { $0 as? String }
+        }
+        return nil
+    }
 }
 
 struct RPCResponse {

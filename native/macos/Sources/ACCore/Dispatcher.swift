@@ -23,6 +23,7 @@ class Dispatcher {
         registerAppMethods()
         registerWindowMethods()
         registerSnapshotMethods()
+        registerActionMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -243,6 +244,88 @@ class Dispatcher {
             self.lastRefMap = self.snapshotBuilder.getRefMap()
             self.lastSnapshotId = result["snapshot_id"] as? String
 
+            return .success(id: req.id, result: result)
+        }
+    }
+
+    // MARK: - Action Methods
+
+    private func registerActionMethods() {
+        register("click") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+
+            let ref = req.paramString("ref")
+            let x = req.paramDouble("x")
+            let y = req.paramDouble("y")
+            let right = req.paramBool("right") ?? false
+            let double = req.paramBool("double") ?? false
+            let count = req.paramInt("count") ?? 1
+            let modifiers = req.paramStringArray("modifiers") ?? []
+
+            let (result, error) = Actions.click(
+                ref: ref, x: x, y: y,
+                right: right, double: double, count: count,
+                modifiers: modifiers, refMap: self.lastRefMap
+            )
+
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            guard let result = result else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Click failed")
+            }
+            return .success(id: req.id, result: result)
+        }
+
+        register("hover") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+
+            let ref = req.paramString("ref")
+            let x = req.paramDouble("x")
+            let y = req.paramDouble("y")
+
+            let (result, error) = Actions.hover(
+                ref: ref, x: x, y: y,
+                refMap: self.lastRefMap
+            )
+
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            guard let result = result else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Hover failed")
+            }
+            return .success(id: req.id, result: result)
+        }
+
+        register("mouse") { req in
+            let action = req.paramString("action") ?? "down"
+            let button = req.paramString("button") ?? "left"
+
+            guard action == "down" || action == "up" else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                              message: "Invalid mouse action: \(action). Use 'down' or 'up'.")
+            }
+            guard ["left", "right", "middle"].contains(button) else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams,
+                              message: "Invalid mouse button: \(button). Use 'left', 'right', or 'middle'.")
+            }
+
+            let (result, error) = Actions.mouseButton(action: action, button: button)
+
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            guard let result = result else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Mouse action failed")
+            }
             return .success(id: req.id, result: result)
         }
     }
