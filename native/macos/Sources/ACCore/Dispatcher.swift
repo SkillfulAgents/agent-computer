@@ -32,6 +32,7 @@ class Dispatcher {
         registerFindMethods()
         registerReadMethods()
         registerWaitMethods()
+        registerMenuMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -905,6 +906,44 @@ class Dispatcher {
 
             return .error(id: req.id, code: RPCErrorCode.invalidParams,
                           message: "wait requires: ms, --app, --window, --text, or ref")
+        }
+    }
+
+    // MARK: - Menu Methods
+
+    private func registerMenuMethods() {
+        register("menu_click") { req in
+            guard let path = req.paramString("path") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing menu path")
+            }
+            let appName = req.paramString("app")
+            let (result, error) = Menus.clickByPath(path: path, appName: appName)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("menu_list") { req in
+            let menuName = req.paramString("menu")
+            let all = req.paramBool("all") ?? false
+            let appName = req.paramString("app")
+            let (result, error) = Menus.list(menuName: menuName, all: all, appName: appName)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("menubar") { req in
+            let (result, error) = Menus.listExtras()
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
         }
     }
 
