@@ -38,6 +38,7 @@ class Dispatcher {
         registerDragMethods()
         registerBatchMethods()
         registerDiffMethods()
+        registerHumanLikeMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -1113,6 +1114,44 @@ class Dispatcher {
             // Update stored snapshot
             self.lastRefMap = self.snapshotBuilder.getRefMap()
             return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Human-Like Methods
+
+    private func registerHumanLikeMethods() {
+        register("human_click") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            guard let element = self.lastRefMap[ref] else {
+                return .error(id: req.id, code: RPCErrorCode.elementNotFound,
+                              message: "Element not found: \(ref). Take a snapshot first.")
+            }
+            let jitter = req.paramDouble("jitter") ?? 3.0
+            HumanLike.humanClick(element: element, jitterPixels: jitter)
+            return .success(id: req.id, result: ["ok": true, "ref": ref, "human": true])
+        }
+
+        register("human_type") { req in
+            guard let text = req.paramString("text") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing text parameter")
+            }
+            let delay = req.paramInt("delay") ?? 50
+            HumanLike.humanType(text: text, baseDelay: delay)
+            return .success(id: req.id, result: ["ok": true, "length": text.count, "human": true])
+        }
+
+        register("human_move") { req in
+            guard let x = req.paramDouble("x"), let y = req.paramDouble("y") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing x or y coordinate")
+            }
+            let duration = req.paramDouble("duration") ?? 0.5
+            HumanLike.curvedMouseMove(to: CGPoint(x: x, y: y), duration: duration)
+            return .success(id: req.id, result: ["ok": true])
         }
     }
 

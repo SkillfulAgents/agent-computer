@@ -8,11 +8,11 @@ describe('formatOutput', () => {
     expect(result).toBe(JSON.stringify(data, null, 2));
   });
 
-  test('text mode formats key-value pairs', () => {
+  test('text mode formats permissions', () => {
     const data = { accessibility: true, screen_recording: false };
     const result = formatOutput(data, true);
-    expect(result).toContain('accessibility: true');
-    expect(result).toContain('screen_recording: false');
+    expect(result).toContain('Accessibility: granted');
+    expect(result).toContain('Screen Recording: NOT GRANTED');
   });
 
   test('text mode formats snapshot as tree', () => {
