@@ -1,29 +1,83 @@
 import Foundation
 
-// JSON-RPC 2.0 protocol types — stub for Phase 0
-// Full implementation in Phase 1
+// MARK: - JSON-RPC 2.0 Protocol Types
 
 struct RPCRequest: Codable {
     let jsonrpc: String
     let id: Int
     let method: String
     let params: [String: AnyCodable]?
+
+    func param<T>(_ key: String) -> T? {
+        return params?[key]?.value as? T
+    }
+
+    func paramString(_ key: String) -> String? {
+        return params?[key]?.value as? String
+    }
+
+    func paramInt(_ key: String) -> Int? {
+        return params?[key]?.value as? Int
+    }
+
+    func paramBool(_ key: String) -> Bool? {
+        return params?[key]?.value as? Bool
+    }
 }
 
-struct RPCResponse: Codable {
-    let jsonrpc: String
+struct RPCResponse {
+    let jsonrpc: String = "2.0"
     let id: Int
-    let result: AnyCodable?
-    let error: RPCError?
+    let result: Any?
+    let error: RPCErrorData?
+
+    static func success(id: Int, result: Any) -> RPCResponse {
+        return RPCResponse(id: id, result: result, error: nil)
+    }
+
+    static func error(id: Int, code: Int, message: String, data: [String: Any]? = nil) -> RPCResponse {
+        return RPCResponse(id: id, result: nil, error: RPCErrorData(code: code, message: message, data: data))
+    }
+
+    func toJSON() -> Data? {
+        var dict: [String: Any] = ["jsonrpc": "2.0", "id": id]
+        if let error = error {
+            var errDict: [String: Any] = ["code": error.code, "message": error.message]
+            if let data = error.data {
+                errDict["data"] = data
+            }
+            dict["error"] = errDict
+        } else if let result = result {
+            dict["result"] = result
+        } else {
+            dict["result"] = NSNull()
+        }
+        return try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys])
+    }
 }
 
-struct RPCError: Codable {
+struct RPCErrorData {
     let code: Int
     let message: String
-    let data: [String: AnyCodable]?
+    let data: [String: Any]?
 }
 
-// Simple AnyCodable wrapper for JSON values
+// MARK: - Error Codes
+enum RPCErrorCode {
+    static let elementNotFound = -32001
+    static let permissionDenied = -32002
+    static let timeout = -32003
+    static let appNotFound = -32004
+    static let windowNotFound = -32005
+    static let invalidRef = -32006
+    static let ocrFallbackFailed = -32007
+    static let invalidRequest = -32600
+    static let methodNotFound = -32601
+    static let invalidParams = -32602
+}
+
+// MARK: - AnyCodable (for decoding arbitrary JSON)
+
 struct AnyCodable: Codable {
     let value: Any
 
@@ -48,7 +102,7 @@ struct AnyCodable: Codable {
         } else if let dict = try? container.decode([String: AnyCodable].self) {
             value = dict.mapValues { $0.value }
         } else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported type")
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON type")
         }
     }
 
@@ -73,4 +127,15 @@ struct AnyCodable: Codable {
             throw EncodingError.invalidValue(value, .init(codingPath: encoder.codingPath, debugDescription: "Unsupported type"))
         }
     }
+}
+
+// MARK: - JSON Parsing Helpers
+
+func parseRPCRequest(from data: Data) -> RPCRequest? {
+    return try? JSONDecoder().decode(RPCRequest.self, from: data)
+}
+
+func parseRPCRequestFromLine(_ line: String) -> RPCRequest? {
+    guard let data = line.data(using: .utf8) else { return nil }
+    return parseRPCRequest(from: data)
 }
