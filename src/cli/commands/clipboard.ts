@@ -1,0 +1,33 @@
+import { registerCommand } from '../commands.js';
+import type { ParsedArgs } from '../parser.js';
+import type { Bridge } from '../../bridge.js';
+
+registerCommand('clipboard', async (args: ParsedArgs, bridge: Bridge) => {
+  const sub = args.subcommand;
+
+  switch (sub) {
+    case 'set': {
+      const text = args.positional[0];
+      if (!text) {
+        return { data: { error: 'Usage: ac clipboard set <text>' }, exitCode: 1 };
+      }
+      const result = await bridge.send('clipboard_set', { text });
+      return { data: result, exitCode: 0 };
+    }
+    case 'copy': {
+      const result = await bridge.send('clipboard_copy');
+      return { data: result, exitCode: 0 };
+    }
+    case 'paste': {
+      const result = await bridge.send('paste', { text: '' });
+      // Actually clipboard paste is just Cmd+V
+      const pasteResult = await bridge.send('key', { combo: 'cmd+v' });
+      return { data: pasteResult, exitCode: 0 };
+    }
+    default: {
+      // Read clipboard
+      const result = await bridge.send('clipboard_read');
+      return { data: result, exitCode: 0 };
+    }
+  }
+});

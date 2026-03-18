@@ -25,6 +25,8 @@ async function ensureCommandModulesLoaded(): Promise<void> {
   await import('./commands/session.js');
   await import('./commands/snapshot.js');
   await import('./commands/click.js');
+  await import('./commands/type.js');
+  await import('./commands/clipboard.js');
 }
 
 export function getCommand(name: string): CommandHandler | undefined {

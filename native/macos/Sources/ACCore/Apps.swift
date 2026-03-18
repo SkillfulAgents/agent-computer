@@ -112,7 +112,7 @@ enum Apps {
         guard let app = findRunningApp(name) else {
             throw AppError.notFound(name)
         }
-        app.activate()
+        app.activate(options: .activateIgnoringOtherApps)
     }
 
     // MARK: - Helpers

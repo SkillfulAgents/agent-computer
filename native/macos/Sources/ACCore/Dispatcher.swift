@@ -24,6 +24,8 @@ class Dispatcher {
         registerWindowMethods()
         registerSnapshotMethods()
         registerActionMethods()
+        registerKeyboardMethods()
+        registerClipboardMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -327,6 +329,119 @@ class Dispatcher {
                 return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Mouse action failed")
             }
             return .success(id: req.id, result: result)
+        }
+    }
+
+    // MARK: - Keyboard Methods
+
+    private func registerKeyboardMethods() {
+        register("type") { [weak self] req in
+            guard let _ = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let text = req.paramString("text") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing text parameter")
+            }
+            let delay = req.paramInt("delay")
+
+            let (result, error) = Keyboard.typeText(text: text, delay: delay)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("fill") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            guard let text = req.paramString("text") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing text parameter")
+            }
+
+            let (result, error) = Keyboard.fill(ref: ref, text: text, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("key") { req in
+            guard let combo = req.paramString("combo") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing combo parameter")
+            }
+            let repeatCount = req.paramInt("repeat") ?? 1
+            let delay = req.paramInt("delay")
+
+            let (result, error) = Keyboard.key(combo: combo, repeat: repeatCount, delay: delay)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("keydown") { req in
+            guard let key = req.paramString("key") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing key parameter")
+            }
+            let (result, error) = Keyboard.keyUpDown(key: key, down: true)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("keyup") { req in
+            guard let key = req.paramString("key") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing key parameter")
+            }
+            let (result, error) = Keyboard.keyUpDown(key: key, down: false)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("paste") { req in
+            guard let text = req.paramString("text") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing text parameter")
+            }
+            let (result, error) = Keyboard.paste(text: text)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Clipboard Methods
+
+    private func registerClipboardMethods() {
+        register("clipboard_read") { req in
+            let (result, _) = ClipboardManager.read()
+            return .success(id: req.id, result: result!)
+        }
+
+        register("clipboard_set") { req in
+            guard let text = req.paramString("text") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing text parameter")
+            }
+            let (result, _) = ClipboardManager.set(text: text)
+            return .success(id: req.id, result: result!)
+        }
+
+        register("clipboard_copy") { req in
+            let (result, _) = ClipboardManager.copy()
+            return .success(id: req.id, result: result!)
         }
     }
 
