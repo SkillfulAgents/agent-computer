@@ -11,12 +11,26 @@ export type CommandResult = {
 type CommandHandler = (args: ParsedArgs, bridge: Bridge) => Promise<CommandResult>;
 
 const commands: Record<string, CommandHandler> = {};
+let commandModulesLoaded = false;
 
 export function registerCommand(name: string, handler: CommandHandler): void {
   commands[name] = handler;
 }
 
+async function ensureCommandModulesLoaded(): Promise<void> {
+  if (commandModulesLoaded) return;
+  commandModulesLoaded = true;
+  await import('./commands/apps.js');
+  await import('./commands/windows.js');
+  await import('./commands/session.js');
+}
+
 export function getCommand(name: string): CommandHandler | undefined {
+  return commands[name];
+}
+
+export async function getCommandAsync(name: string): Promise<CommandHandler | undefined> {
+  await ensureCommandModulesLoaded();
   return commands[name];
 }
 

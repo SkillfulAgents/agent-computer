@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:agent-computer}/native/macos",
+            "name": "Debug ac-core (native/macos)",
+            "target": "ac-core",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug ac-core (native/macos)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:agent-computer}/native/macos",
+            "name": "Release ac-core (native/macos)",
+            "target": "ac-core",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release ac-core (native/macos)"
+        }
+    ]
+}

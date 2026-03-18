@@ -4,5 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 10000,
+    // Integration tests share a daemon, so they must run sequentially
+    fileParallelism: false,
   },
 });

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs, type ParsedArgs } from '../src/cli/parser.js';
-import { getCommand } from '../src/cli/commands.js';
+import { getCommand, getCommandAsync } from '../src/cli/commands.js';
 import { formatOutput, wrapBoundary, truncateOutput } from '../src/cli/output.js';
 import { Bridge } from '../src/bridge.js';
 import { ACError } from '../src/errors.js';
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   }
 
   // Find command handler
-  const handler = getCommand(parsed.command);
+  const handler = await getCommandAsync(parsed.command);
   if (!handler) {
     // Try sending as a raw method to the daemon
     const bridge = new Bridge({ timeout });
