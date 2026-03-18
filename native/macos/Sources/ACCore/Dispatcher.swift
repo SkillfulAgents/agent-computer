@@ -27,6 +27,8 @@ class Dispatcher {
         registerKeyboardMethods()
         registerClipboardMethods()
         registerCaptureMethods()
+        registerScrollMethods()
+        registerFocusMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -595,6 +597,118 @@ class Dispatcher {
         register("displays") { req in
             let displays = Capture.listDisplays()
             return .success(id: req.id, result: ["displays": displays])
+        }
+    }
+
+    // MARK: - Scroll Methods
+
+    private func registerScrollMethods() {
+        register("scroll") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let direction = req.paramString("direction") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing direction parameter")
+            }
+            let amount = req.paramInt("amount") ?? 3
+            let onRef = req.paramString("on")
+            let pixels = req.paramInt("pixels")
+            let smooth = req.paramBool("smooth") ?? false
+
+            let (result, error) = Scroll.scroll(
+                direction: direction, amount: amount, onRef: onRef,
+                pixels: pixels, smooth: smooth, refMap: self.lastRefMap
+            )
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Focus Methods
+
+    private func registerFocusMethods() {
+        register("focus") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            let (result, error) = Focus.focus(ref: ref, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("select") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            guard let value = req.paramString("value") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing value parameter")
+            }
+            let (result, error) = Focus.select(ref: ref, value: value, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("check") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            let (result, error) = Focus.check(ref: ref, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("uncheck") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            let (result, error) = Focus.uncheck(ref: ref, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("set") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let ref = req.paramString("ref") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing ref parameter")
+            }
+            guard let value = req.paramString("value") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing value parameter")
+            }
+            let (result, error) = Focus.setValue(ref: ref, value: value, refMap: self.lastRefMap)
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
         }
     }
 

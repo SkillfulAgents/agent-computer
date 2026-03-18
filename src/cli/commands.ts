@@ -29,6 +29,7 @@ async function ensureCommandModulesLoaded(): Promise<void> {
   await import('./commands/clipboard.js');
   await import('./commands/windowmgmt.js');
   await import('./commands/screenshot.js');
+  await import('./commands/scroll.js');
 }
 
 export function getCommand(name: string): CommandHandler | undefined {

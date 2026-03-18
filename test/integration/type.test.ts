@@ -13,7 +13,9 @@ describe('Type & Fill — TextEdit', () => {
     await sleep(1000);
     await bridge.send('launch', { name: 'TextEdit', wait: true });
     await sleep(2000);
-    // TextEdit may open a file browser — create new document with Cmd+N
+    // TextEdit may open a file browser — activate it and create new document
+    await bridge.send('switch', { name: 'TextEdit' });
+    await sleep(500);
     await bridge.send('key', { combo: 'cmd+n' });
     await sleep(1500);
   }, 30000);
@@ -224,7 +226,9 @@ describe('Paste', () => {
     await sleep(1000);
     await bridge.send('launch', { name: 'TextEdit', wait: true });
     await sleep(2000);
-    // TextEdit may open a file browser — create new document
+    // TextEdit may open a file browser — activate and create new document
+    await bridge.send('switch', { name: 'TextEdit' });
+    await sleep(500);
     await bridge.send('key', { combo: 'cmd+n' });
     await sleep(1500);
   }, 30000);
