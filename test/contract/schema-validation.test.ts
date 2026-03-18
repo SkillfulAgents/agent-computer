@@ -21,10 +21,14 @@ function createValidator() {
   const elementSchema = loadJSON('types/element.json') as Record<string, unknown>;
   const windowInfoSchema = loadJSON('types/window-info.json') as Record<string, unknown>;
 
+  // Register with both full path and basename (for $ref resolution)
   ajv.addSchema(refSchema, 'types/ref.json');
+  ajv.addSchema(refSchema, 'ref.json');
   ajv.addSchema(roleSchema, 'types/normalized-role.json');
+  ajv.addSchema(roleSchema, 'normalized-role.json');
   ajv.addSchema(elementSchema, 'types/element.json');
   ajv.addSchema(windowInfoSchema, 'types/window-info.json');
+  ajv.addSchema(windowInfoSchema, 'window-info.json');
 
   return ajv;
 }
@@ -120,6 +124,71 @@ describe('Contract: JSON Schema Validation', () => {
         error: { code: -32601, message: 'Method not found' },
       });
       expect(valid).toBe(true);
+    });
+  });
+
+  describe('Element schema', () => {
+    // Element schema uses $ref — compile it from the ajv instance that has ref.json and normalized-role.json registered
+    const validateElement = ajv.compile(loadJSON('types/element.json') as Record<string, unknown>);
+
+    test('valid element validates', () => {
+      expect(validateElement({
+        ref: '@b1', role: 'button', label: 'Save', value: null,
+        enabled: true, focused: false, bounds: [10, 20, 80, 24],
+      })).toBe(true);
+    });
+
+    test('element with children validates', () => {
+      expect(validateElement({
+        ref: '@g1', role: 'group', label: 'Toolbar', value: null,
+        enabled: true, focused: false, bounds: [0, 0, 800, 40],
+        children: [
+          { ref: '@b1', role: 'button', label: 'Save', value: null, enabled: true, focused: false, bounds: [10, 5, 80, 24] },
+        ],
+      })).toBe(true);
+    });
+
+    test('element with two-letter ref validates', () => {
+      expect(validateElement({
+        ref: '@cb1', role: 'combobox', label: 'Combo', value: null,
+        enabled: true, focused: false, bounds: [0, 0, 100, 30],
+      })).toBe(true);
+    });
+
+    test('element missing required field rejects', () => {
+      expect(validateElement({ ref: '@b1', role: 'button' })).toBe(false);
+    });
+
+    test('element with invalid role rejects', () => {
+      expect(validateElement({
+        ref: '@b1', role: 'invalid_role', label: null, value: null,
+        enabled: true, focused: false, bounds: [0, 0, 0, 0],
+      })).toBe(false);
+    });
+
+    test('element with invalid ref rejects', () => {
+      expect(validateElement({
+        ref: 'notaref', role: 'button', label: null, value: null,
+        enabled: true, focused: false, bounds: [0, 0, 0, 0],
+      })).toBe(false);
+    });
+  });
+
+  describe('WindowInfo schema', () => {
+    test('valid window info validates', () => {
+      const validate = ajv.compile(loadJSON('types/window-info.json') as Record<string, unknown>);
+      expect(validate({
+        ref: '@w1', title: 'Untitled', app: 'TextEdit', process_id: 123,
+        bounds: [0, 0, 800, 600], minimized: false, hidden: false, fullscreen: false,
+      })).toBe(true);
+    });
+
+    test('window info with optional bundle_id validates', () => {
+      const validate = ajv.compile(loadJSON('types/window-info.json') as Record<string, unknown>);
+      expect(validate({
+        ref: '@w1', title: 'Untitled', app: 'TextEdit', bundle_id: 'com.apple.TextEdit',
+        process_id: 123, bounds: [0, 0, 800, 600], minimized: false, hidden: false, fullscreen: false,
+      })).toBe(true);
     });
   });
 
