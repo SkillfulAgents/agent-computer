@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "error": {
+    "code": -32001,
+    "message": "Element not found",
+    "data": {
+      "ref": "@b99",
+      "snapshot_id": "a1b2c3d4"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NormalizedRole",
+  "description": "Platform-normalized UI element role",
+  "type": "string",
+  "enum": [
+    "button", "textfield", "textarea", "link", "checkbox", "radio",
+    "slider", "dropdown", "image", "group", "window", "table", "row",
+    "cell", "tabgroup", "tab", "menubar", "menuitem", "scrollarea",
+    "text", "toolbar", "combobox", "stepper", "splitgroup", "timeline",
+    "progress", "treeview", "webarea", "generic"
+  ]
+}

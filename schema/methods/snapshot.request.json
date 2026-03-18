@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SnapshotRequest",
+  "type": "object",
+  "required": ["jsonrpc", "id", "method"],
+  "properties": {
+    "jsonrpc": { "const": "2.0" },
+    "id": { "type": "integer" },
+    "method": { "const": "snapshot" },
+    "params": {
+      "type": "object",
+      "properties": {
+        "interactive": { "type": "boolean" },
+        "compact": { "type": "boolean" },
+        "depth": { "type": "integer", "minimum": 1 },
+        "subtree": { "type": "string" },
+        "app": { "type": "string" },
+        "pid": { "type": "integer" },
+        "screen": { "type": "boolean" },
+        "window": { "type": "string" }
+      }
+    }
+  }
+}

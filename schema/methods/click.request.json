@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ClickRequest",
+  "type": "object",
+  "required": ["jsonrpc", "id", "method", "params"],
+  "properties": {
+    "jsonrpc": { "const": "2.0" },
+    "id": { "type": "integer" },
+    "method": { "const": "click" },
+    "params": {
+      "type": "object",
+      "properties": {
+        "ref": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "right": { "type": "boolean" },
+        "double": { "type": "boolean" },
+        "count": { "type": "integer", "minimum": 1 },
+        "modifiers": { "type": "array", "items": { "type": "string" } },
+        "wait": { "type": "boolean" },
+        "human": { "type": "boolean" },
+        "timeout": { "type": "integer" }
+      }
+    }
+  }
+}

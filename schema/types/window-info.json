@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WindowInfo",
+  "description": "Information about a window",
+  "type": "object",
+  "required": ["ref", "title", "app", "process_id", "bounds", "minimized", "hidden", "fullscreen"],
+  "properties": {
+    "ref": { "type": "string" },
+    "title": { "type": "string" },
+    "app": { "type": "string" },
+    "bundle_id": { "type": "string" },
+    "process_id": { "type": "integer" },
+    "bounds": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "minimized": { "type": "boolean" },
+    "hidden": { "type": "boolean" },
+    "fullscreen": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

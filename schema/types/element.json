@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Element",
+  "description": "A UI element in the accessibility tree",
+  "type": "object",
+  "required": ["ref", "role", "label", "enabled", "focused", "bounds"],
+  "properties": {
+    "ref": { "$ref": "ref.json" },
+    "role": { "$ref": "normalized-role.json" },
+    "label": { "type": ["string", "null"] },
+    "value": { "type": ["string", "null"] },
+    "enabled": { "type": "boolean" },
+    "focused": { "type": "boolean" },
+    "bounds": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "children": {
+      "type": "array",
+      "items": { "$ref": "#" }
+    }
+  },
+  "additionalProperties": false
+}
