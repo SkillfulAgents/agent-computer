@@ -82,5 +82,25 @@ describe('roleToPrefix', () => {
   test('button → b', () => expect(roleToPrefix('button')).toBe('b'));
   test('combobox → cb', () => expect(roleToPrefix('combobox')).toBe('cb'));
   test('scrollarea → sa', () => expect(roleToPrefix('scrollarea')).toBe('sa'));
+  test('textarea → t (dual-mapped with textfield)', () => expect(roleToPrefix('textarea')).toBe('t'));
+  test('textfield → t', () => expect(roleToPrefix('textfield')).toBe('t'));
   test('unknown role → e (generic)', () => expect(roleToPrefix('nonexistent')).toBe('e'));
+});
+
+describe('Edge Cases', () => {
+  test('large ref ID numbers parse correctly', () => {
+    const result = parseRef('@b999999');
+    expect(result).toEqual({ prefix: 'b', role: 'button', id: 999999 });
+  });
+
+  test('ref with ID 1 is minimum valid', () => {
+    expect(parseRef('@b1')).toEqual({ prefix: 'b', role: 'button', id: 1 });
+  });
+
+  test('two-letter prefix is preferred over single+digit ambiguity', () => {
+    // @cb1 should parse as prefix="cb" (combobox), not prefix="c" (checkbox) with some leftover
+    const result = parseRef('@cb1');
+    expect(result.prefix).toBe('cb');
+    expect(result.role).toBe('combobox');
+  });
 });

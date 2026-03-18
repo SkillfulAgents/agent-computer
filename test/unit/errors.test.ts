@@ -39,6 +39,39 @@ describe('errorFromCode', () => {
   });
 });
 
+describe('Error class hierarchy', () => {
+  test('all error classes extend ACError', () => {
+    const errors = [
+      new ElementNotFoundError('test'),
+      new PermissionDeniedError('test'),
+      new TimeoutError('test'),
+      new AppNotFoundError('test'),
+      new WindowNotFoundError('test'),
+      new InvalidRefError('test'),
+      new MethodNotFoundError('test'),
+    ];
+    for (const err of errors) {
+      expect(err).toBeInstanceOf(ACError);
+      expect(err).toBeInstanceOf(Error);
+    }
+  });
+
+  test('error name matches class convention', () => {
+    expect(new ElementNotFoundError('x').name).toBe('ELEMENT_NOT_FOUND');
+    expect(new PermissionDeniedError('x').name).toBe('PERMISSION_DENIED');
+    expect(new TimeoutError('x').name).toBe('TIMEOUT');
+    expect(new WindowNotFoundError('x').name).toBe('WINDOW_NOT_FOUND');
+    expect(new InvalidRefError('x').name).toBe('INVALID_REF');
+  });
+
+  test('error data is preserved through errorFromCode', () => {
+    const data = { ref: '@b99', snapshot_id: 'abc', suggestion: 're-snapshot' };
+    const err = errorFromCode(-32001, 'not found', data);
+    expect(err.data).toEqual(data);
+    expect(err.data?.ref).toBe('@b99');
+  });
+});
+
 describe('exitCodeFromErrorCode', () => {
   test('maps known codes correctly', () => {
     expect(exitCodeFromErrorCode(-32001)).toBe(1);
