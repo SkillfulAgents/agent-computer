@@ -26,6 +26,7 @@ class Dispatcher {
         registerActionMethods()
         registerKeyboardMethods()
         registerClipboardMethods()
+        registerCaptureMethods()
     }
 
     private func registerBuiltinMethods() {
@@ -557,6 +558,43 @@ class Dispatcher {
         register("clipboard_copy") { req in
             let (result, _) = ClipboardManager.copy()
             return .success(id: req.id, result: result!)
+        }
+    }
+
+    // MARK: - Capture Methods
+
+    private func registerCaptureMethods() {
+        register("screenshot") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            let windowRef = req.paramString("ref") ?? self.grabbedWindow
+            let fullScreen = req.paramBool("screen") ?? false
+            let retina = req.paramBool("retina") ?? false
+            let format = req.paramString("format") ?? "png"
+            let quality = req.paramInt("quality") ?? 85
+            let outputPath = req.paramString("path")
+
+            let (result, error) = Capture.screenshot(
+                windowRef: fullScreen ? nil : windowRef,
+                windowManager: self.windowManager,
+                fullScreen: fullScreen,
+                retina: retina,
+                format: format,
+                quality: quality,
+                outputPath: outputPath
+            )
+
+            if let error = error {
+                return .error(id: req.id, code: error.error?.code ?? -32600,
+                              message: error.error?.message ?? "Unknown error")
+            }
+            return .success(id: req.id, result: result!)
+        }
+
+        register("displays") { req in
+            let displays = Capture.listDisplays()
+            return .success(id: req.id, result: ["displays": displays])
         }
     }
 
