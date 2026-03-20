@@ -14,13 +14,19 @@ export function resolveBinary(): string {
     throw new Error(`Unsupported platform: ${os}. ac supports macOS and Windows.`);
   }
 
-  // In development: look for the locally-built binary
+  // Bundled binary (release package)
+  const bundledPath = join(__dirname, '..', '..', 'bin', 'ac-core');
+  if (existsSync(bundledPath)) {
+    return bundledPath;
+  }
+
+  // Development: locally-built binary (release)
   const devBinaryPath = join(__dirname, '..', '..', 'native', 'macos', '.build', 'release', 'ac-core');
   if (existsSync(devBinaryPath)) {
     return devBinaryPath;
   }
 
-  // Also check debug build
+  // Development: debug build
   const debugBinaryPath = join(__dirname, '..', '..', 'native', 'macos', '.build', 'debug', 'ac-core');
   if (existsSync(debugBinaryPath)) {
     return debugBinaryPath;

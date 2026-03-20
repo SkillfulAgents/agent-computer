@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  unit-tests:
+    name: Unit & Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  swift-build:
+    name: Swift Build & Test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Swift build
+        uses: actions/cache@v4
+        with:
+          path: native/macos/.build
+          key: swift-${{ runner.os }}-${{ hashFiles('native/macos/Sources/**/*.swift', 'native/macos/Package.swift') }}
+          restore-keys: swift-${{ runner.os }}-
+
+      - name: Build ac-core
+        run: cd native/macos && swift build
+
+      - name: Swift tests
+        run: cd native/macos && swift test
+
+  swift-release-build:
+    name: Swift Release Build
+    runs-on: macos-14
+    needs: swift-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Swift build
+        uses: actions/cache@v4
+        with:
+          path: native/macos/.build
+          key: swift-release-${{ runner.os }}-${{ hashFiles('native/macos/Sources/**/*.swift', 'native/macos/Package.swift') }}
+          restore-keys: swift-release-${{ runner.os }}-
+
+      - name: Build release binary
+        run: cd native/macos && swift build -c release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ac-core-macos-arm64
+          path: native/macos/.build/release/ac-core
+
+  test-app-build:
+    name: Build TestApp
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ACTestApp
+        run: cd native/macos/TestApp && swift build
+
+  # Integration, functional, and E2E tests require:
+  #   - macOS with GUI session
+  #   - Accessibility permission granted to the terminal
+  #   - Screen Recording permission (for screenshots)
+  #
+  # These cannot run on GitHub Actions runners.
+  # Run locally with:
+  #   npm run test:integration
+  #   npm run test:functional
+  #   npm run test:e2e
+  #   npm run test:all
