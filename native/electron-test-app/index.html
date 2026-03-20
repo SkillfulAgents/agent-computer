@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AC Electron Test App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar" role="tablist">
+    <button role="tab" aria-label="Buttons Tab" aria-selected="true" class="active" data-tab="buttons">Buttons</button>
+    <button role="tab" aria-label="Text Input Tab" aria-selected="false" data-tab="textinput">Text Input</button>
+    <button role="tab" aria-label="Controls Tab" aria-selected="false" data-tab="controls">Controls</button>
+    <button role="tab" aria-label="Scroll Tab" aria-selected="false" data-tab="scroll">Scroll</button>
+    <button role="tab" aria-label="Form Tab" aria-selected="false" data-tab="form">Form</button>
+  </div>
+
+  <!-- Buttons Tab -->
+  <div id="tab-buttons" class="tab-panel active" role="tabpanel">
+    <h2>Buttons</h2>
+    <div class="button-row">
+      <button class="btn btn-primary" aria-label="Primary" id="btn-primary">Primary</button>
+      <button class="btn btn-secondary" aria-label="Secondary" id="btn-secondary">Secondary</button>
+      <button class="btn btn-danger" aria-label="Danger" id="btn-danger">Danger</button>
+      <button class="btn btn-disabled" aria-label="Disabled" id="btn-disabled" disabled>Disabled</button>
+    </div>
+    <div class="click-counter" id="click-counter">Click count: 0</div>
+  </div>
+
+  <!-- Text Input Tab -->
+  <div id="tab-textinput" class="tab-panel" role="tabpanel">
+    <h2>Text Input</h2>
+    <div class="field-group">
+      <label for="input-name">Name</label>
+      <input type="text" id="input-name" aria-label="Name" placeholder="Enter your name">
+      <div class="value-display" id="display-name">Value: </div>
+    </div>
+    <div class="field-group">
+      <label for="input-search">Search</label>
+      <input type="search" id="input-search" aria-label="Search" placeholder="Search...">
+      <div class="value-display" id="display-search">Value: </div>
+    </div>
+    <div class="field-group">
+      <label for="input-password">Password</label>
+      <input type="password" id="input-password" aria-label="Password" placeholder="Enter password">
+      <div class="value-display" id="display-password">Value: </div>
+    </div>
+    <div class="field-group">
+      <label for="input-notes">Notes</label>
+      <textarea id="input-notes" aria-label="Notes" placeholder="Enter notes"></textarea>
+      <div class="value-display" id="display-notes">Value: </div>
+    </div>
+  </div>
+
+  <!-- Controls Tab -->
+  <div id="tab-controls" class="tab-panel" role="tabpanel">
+    <h2>Controls</h2>
+
+    <div class="control-group">
+      <div class="checkbox-row">
+        <input type="checkbox" id="checkbox-a" aria-label="Option A">
+        <label for="checkbox-a">Option A</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="checkbox-b" aria-label="Option B">
+        <label for="checkbox-b">Option B</label>
+      </div>
+    </div>
+
+    <div class="slider-group">
+      <label for="range-slider">Range Slider</label>
+      <input type="range" id="range-slider" aria-label="Range Slider" min="0" max="100" value="50">
+      <div class="slider-value" id="slider-value">Value: 50</div>
+    </div>
+
+    <div class="select-group">
+      <label for="color-select">Color</label><br>
+      <select id="color-select" aria-label="Color Select">
+        <option value="Red">Red</option>
+        <option value="Green">Green</option>
+        <option value="Blue">Blue</option>
+        <option value="Yellow">Yellow</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Scroll Tab -->
+  <div id="tab-scroll" class="tab-panel" role="tabpanel">
+    <h2>Scroll</h2>
+    <div id="scroll-container"></div>
+    <div class="scroll-buttons">
+      <button aria-label="Scroll to Top" id="scroll-top-btn">Scroll to Top</button>
+      <button aria-label="Scroll to Bottom" id="scroll-bottom-btn">Scroll to Bottom</button>
+    </div>
+  </div>
+
+  <!-- Form Tab -->
+  <div id="tab-form" class="tab-panel" role="tabpanel">
+    <h2>Form</h2>
+    <div class="form-row">
+      <div class="field-group">
+        <label for="form-first">First Name</label>
+        <input type="text" id="form-first" aria-label="First Name" placeholder="First name">
+      </div>
+      <div class="field-group">
+        <label for="form-last">Last Name</label>
+        <input type="text" id="form-last" aria-label="Last Name" placeholder="Last name">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field-group">
+        <label for="form-email">Email</label>
+        <input type="email" id="form-email" aria-label="Email" placeholder="Email address">
+      </div>
+      <div class="field-group">
+        <label for="form-age">Age</label>
+        <input type="number" id="form-age" aria-label="Age" placeholder="Age">
+      </div>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="form-agree" aria-label="Agree to Terms">
+      <label for="form-agree">I agree to the terms</label>
+    </div>
+    <div class="form-actions">
+      <button class="submit-btn" aria-label="Submit" id="form-submit" disabled>Submit</button>
+      <button class="reset-btn" aria-label="Reset" id="form-reset">Reset</button>
+    </div>
+    <div class="validation-message" id="validation-message"></div>
+  </div>
+
+  <script>
+    // --- Tab Switching ---
+    const tabButtons = document.querySelectorAll('.tab-bar button');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.tab;
+
+        tabButtons.forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+
+        tabPanels.forEach(panel => panel.classList.remove('active'));
+        document.getElementById('tab-' + target).classList.add('active');
+      });
+    });
+
+    // --- Buttons Tab ---
+    let clickCount = 0;
+    const counterDisplay = document.getElementById('click-counter');
+
+    ['Primary', 'Secondary', 'Danger'].forEach(name => {
+      document.getElementById('btn-' + name.toLowerCase()).addEventListener('click', () => {
+        clickCount++;
+        counterDisplay.textContent = 'Click count: ' + clickCount;
+        window.acTestStatus.write('clicked:' + name);
+      });
+    });
+
+    // --- Text Input Tab ---
+    ['name', 'search', 'password', 'notes'].forEach(field => {
+      const el = document.getElementById('input-' + field);
+      const display = document.getElementById('display-' + field);
+      const label = field.charAt(0).toUpperCase() + field.slice(1);
+
+      el.addEventListener('input', () => {
+        display.textContent = 'Value: ' + el.value;
+        window.acTestStatus.write('typed:' + label + ':' + el.value);
+      });
+    });
+
+    // --- Controls Tab ---
+    // Checkboxes
+    ['a', 'b'].forEach(id => {
+      const el = document.getElementById('checkbox-' + id);
+      const label = 'Option ' + id.toUpperCase();
+      el.addEventListener('change', () => {
+        const action = el.checked ? 'checked' : 'unchecked';
+        window.acTestStatus.write(action + ':' + label);
+      });
+    });
+
+    // Slider
+    const slider = document.getElementById('range-slider');
+    const sliderValue = document.getElementById('slider-value');
+    slider.addEventListener('input', () => {
+      sliderValue.textContent = 'Value: ' + slider.value;
+      window.acTestStatus.write('slider:' + slider.value);
+    });
+
+    // Select
+    const colorSelect = document.getElementById('color-select');
+    colorSelect.addEventListener('change', () => {
+      window.acTestStatus.write('selected:' + colorSelect.value);
+    });
+
+    // --- Scroll Tab ---
+    const scrollContainer = document.getElementById('scroll-container');
+    for (let i = 1; i <= 100; i++) {
+      const item = document.createElement('div');
+      item.className = 'scroll-item';
+      item.textContent = 'Item ' + i;
+      scrollContainer.appendChild(item);
+    }
+
+    document.getElementById('scroll-top-btn').addEventListener('click', () => {
+      scrollContainer.scrollTop = 0;
+      window.acTestStatus.write('scroll:top');
+    });
+
+    document.getElementById('scroll-bottom-btn').addEventListener('click', () => {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      window.acTestStatus.write('scroll:bottom');
+    });
+
+    // --- Form Tab ---
+    const formAgree = document.getElementById('form-agree');
+    const formSubmit = document.getElementById('form-submit');
+    const formReset = document.getElementById('form-reset');
+    const validationMessage = document.getElementById('validation-message');
+
+    formAgree.addEventListener('change', () => {
+      formSubmit.disabled = !formAgree.checked;
+      const action = formAgree.checked ? 'checked' : 'unchecked';
+      window.acTestStatus.write(action + ':Agree to Terms');
+    });
+
+    formSubmit.addEventListener('click', () => {
+      const first = document.getElementById('form-first').value.trim();
+      const last = document.getElementById('form-last').value.trim();
+      const email = document.getElementById('form-email').value.trim();
+      const age = document.getElementById('form-age').value.trim();
+
+      // Basic validation
+      const errors = [];
+      if (!first) errors.push('First name is required');
+      if (!last) errors.push('Last name is required');
+      if (!email || !email.includes('@')) errors.push('Valid email is required');
+      if (!age || isNaN(age) || Number(age) < 1) errors.push('Valid age is required');
+
+      if (errors.length > 0) {
+        validationMessage.textContent = errors.join('. ') + '.';
+        validationMessage.className = 'validation-message error';
+      } else {
+        validationMessage.textContent = 'Form submitted successfully!';
+        validationMessage.className = 'validation-message success';
+      }
+
+      window.acTestStatus.write('form:submitted');
+    });
+
+    formReset.addEventListener('click', () => {
+      document.getElementById('form-first').value = '';
+      document.getElementById('form-last').value = '';
+      document.getElementById('form-email').value = '';
+      document.getElementById('form-age').value = '';
+      formAgree.checked = false;
+      formSubmit.disabled = true;
+      validationMessage.textContent = '';
+      validationMessage.className = 'validation-message';
+      window.acTestStatus.write('form:reset');
+    });
+  </script>
+
+</body>
+</html>

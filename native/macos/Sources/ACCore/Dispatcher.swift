@@ -13,6 +13,8 @@ class Dispatcher {
     // Session state
     var grabbedWindow: String? = nil
     var lastSnapshotId: String? = nil
+    var cdpPorts: [String: Int] = [:]  // lowercase app name → CDP port
+    var kvStore: [String: Any] = [:]  // generic key-value store for cross-process state
 
     // Managers
     let windowManager = WindowManager()
@@ -52,8 +54,16 @@ class Dispatcher {
                 return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
             }
             let uptime = Int(Date().timeIntervalSince(self.startTime) * 1000)
+            var grabbedApp: String? = nil
+            var grabbedPid: Int? = nil
+            if let ref = self.grabbedWindow, let info = self.windowManager.getWindowInfo(ref: ref) {
+                grabbedApp = info["app"] as? String
+                grabbedPid = info["process_id"] as? Int
+            }
             return .success(id: req.id, result: [
                 "grabbed_window": self.grabbedWindow as Any,
+                "grabbed_app": grabbedApp as Any,
+                "grabbed_pid": grabbedPid as Any,
                 "last_snapshot_id": self.lastSnapshotId as Any,
                 "daemon_pid": ProcessInfo.processInfo.processIdentifier,
                 "daemon_uptime_ms": uptime,
@@ -81,6 +91,30 @@ class Dispatcher {
         register("permissions_grant") { req in
             Permissions.openAccessibilitySettings()
             return .success(id: req.id, result: ["ok": true])
+        }
+
+        register("kv_set") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let key = req.paramString("key") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing key")
+            }
+            self.kvStore[key] = req.params?["value"]?.value
+            return .success(id: req.id, result: ["ok": true])
+        }
+
+        register("kv_get") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let key = req.paramString("key") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing key")
+            }
+            if let value = self.kvStore[key] {
+                return .success(id: req.id, result: ["key": key, "value": value])
+            }
+            return .success(id: req.id, result: ["key": key, "value": NSNull()])
         }
     }
 
@@ -161,6 +195,55 @@ class Dispatcher {
             } catch {
                 return .error(id: req.id, code: RPCErrorCode.appNotFound, message: error.localizedDescription)
             }
+        }
+
+        register("app_executable") { req in
+            guard let name = req.paramString("name") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing app name")
+            }
+            if let path = Apps.executablePath(name: name) {
+                return .success(id: req.id, result: ["executable": path])
+            }
+            return .error(id: req.id, code: RPCErrorCode.appNotFound, message: "Could not find executable for \(name)")
+        }
+
+        register("is_chromium") { req in
+            guard let name = req.paramString("name") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing app name")
+            }
+            return .success(id: req.id, result: ["is_chromium": Apps.isChromiumBundle(name: name)])
+        }
+
+        register("launch_cdp") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let name = req.paramString("name") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing app name")
+            }
+            let port = req.paramInt("port") ?? 19200
+            do {
+                let info = try Apps.launchWithCDP(name: name, port: port)
+                self.cdpPorts[name.lowercased()] = port
+                return .success(id: req.id, result: info)
+            } catch let error as AppError {
+                return .error(id: req.id, code: RPCErrorCode.appNotFound, message: error.description)
+            } catch {
+                return .error(id: req.id, code: RPCErrorCode.appNotFound, message: error.localizedDescription)
+            }
+        }
+
+        register("cdp_port") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
+            guard let name = req.paramString("name") else {
+                return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing app name")
+            }
+            if let port = self.cdpPorts[name.lowercased()] {
+                return .success(id: req.id, result: ["port": port, "name": name])
+            }
+            return .success(id: req.id, result: ["port": NSNull(), "name": name])
         }
     }
 
@@ -391,7 +474,8 @@ class Dispatcher {
                 targetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
             }
             if let pid = targetPid, Apps.isChromiumApp(pid: pid) {
-                finalResult["hint"] = "This is a Chromium/Electron app. The accessibility tree may be limited. Consider using keyboard shortcuts, coordinate-based clicks (ac click x,y), or screenshots for navigation." as Any
+                let chromiumAppName = appName ?? NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid })?.localizedName ?? "AppName"
+                finalResult["hint"] = "This is a Chromium/Electron app. Run `ac relaunch \(chromiumAppName)` to restart it with CDP support for a full accessibility tree." as Any
             }
 
             return .success(id: req.id, result: finalResult)

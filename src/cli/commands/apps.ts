@@ -26,6 +26,15 @@ registerCommand('launch', async (args: ParsedArgs, bridge: Bridge) => {
   return { data: result, exitCode: 0 };
 });
 
+registerCommand('relaunch', async (args: ParsedArgs, bridge: Bridge) => {
+  const name = args.positional[0];
+  if (!name) {
+    return { data: { error: 'Usage: ac relaunch <name>' }, exitCode: 1 };
+  }
+  const result = await bridge.send('relaunch', { name });
+  return { data: result, exitCode: 0 };
+});
+
 registerCommand('quit', async (args: ParsedArgs, bridge: Bridge) => {
   const name = args.positional[0];
   if (!name) {

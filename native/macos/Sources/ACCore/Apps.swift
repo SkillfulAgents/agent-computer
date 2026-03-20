@@ -3,6 +3,9 @@ import AppKit
 
 enum Apps {
 
+    /// Strong references to processes we launched, to prevent premature deallocation
+    private static var launchedProcesses: [Int32: Process] = [:]
+
     /// List running applications
     static func listRunning() -> [[String: Any]] {
         let workspace = NSWorkspace.shared
@@ -191,6 +194,70 @@ enum Apps {
         ]
     }
 
+    /// Launch an application with --remote-debugging-port for CDP
+    static func launchWithCDP(name: String, port: Int) throws -> [String: Any] {
+        guard let execPath = executablePath(name: name) else {
+            throw AppError.notFound(name)
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: execPath)
+        process.arguments = [
+            "--remote-debugging-port=\(port)",
+            "--force-renderer-accessibility",
+        ]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        try process.run()
+
+        // Retain the process to prevent deallocation
+        let pid = process.processIdentifier
+        launchedProcesses[pid] = process
+
+        // Clean up reference when process terminates
+        process.terminationHandler = { proc in
+            launchedProcesses.removeValue(forKey: proc.processIdentifier)
+        }
+
+        // Wait for the app to register with the system
+        Thread.sleep(forTimeInterval: 2.0)
+
+        // Find the running app info
+        if let app = NSWorkspace.shared.runningApplications.first(where: {
+            $0.localizedName?.lowercased() == name.lowercased()
+        }) ?? NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier?.lowercased().contains(name.lowercased()) == true
+        }) {
+            var info = appInfo(app)
+            info["cdp_port"] = port
+            return info
+        }
+
+        return ["ok": true, "cdp_port": port, "pid": pid]
+    }
+
+    /// Get the executable path for an application by name
+    static func executablePath(name: String) -> String? {
+        let workspace = NSWorkspace.shared
+
+        // Try to find app URL
+        guard let appURL = workspace.urlForApplication(withBundleIdentifier: bundleIdForName(name))
+                ?? findAppByName(name) else {
+            return nil
+        }
+
+        // Read Info.plist to get CFBundleExecutable
+        let plistURL = appURL.appendingPathComponent("Contents/Info.plist")
+        guard let plistData = try? Data(contentsOf: plistURL),
+              let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+              let execName = plist["CFBundleExecutable"] as? String else {
+            return nil
+        }
+
+        return appURL.appendingPathComponent("Contents/MacOS/\(execName)").path
+    }
+
     /// Detect if an app is Electron/Chromium-based by checking its bundle for known frameworks
     static func isChromiumApp(_ app: NSRunningApplication) -> Bool {
         guard let bundleURL = app.bundleURL else { return false }
@@ -216,7 +283,33 @@ enum Apps {
         return false
     }
 
-    /// Check by app name or PID
+    /// Check by bundle path (works even if app is not running)
+    static func isChromiumBundle(name: String) -> Bool {
+        let workspace = NSWorkspace.shared
+        guard let appURL = workspace.urlForApplication(withBundleIdentifier: bundleIdForName(name))
+                ?? findAppByName(name) else {
+            return false
+        }
+        let frameworksPath = appURL.appendingPathComponent("Contents/Frameworks")
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(atPath: frameworksPath.path) else {
+            return false
+        }
+        let chromiumMarkers = [
+            "Electron Framework.framework",
+            "Chromium Embedded Framework.framework",
+            "CefSharp.BrowserSubprocess",
+            "nwjs Framework.framework",
+        ]
+        for marker in chromiumMarkers {
+            if contents.contains(marker) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Check by app name or PID (requires app to be running)
     static func isChromiumApp(name: String) -> Bool {
         guard let app = findRunningApp(name) else { return false }
         return isChromiumApp(app)

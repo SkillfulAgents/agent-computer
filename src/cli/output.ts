@@ -89,7 +89,14 @@ function formatText(data: unknown): string {
     if ('ok' in obj && Object.keys(obj).length <= 3) {
       const extra = Object.entries(obj)
         .filter(([k]) => k !== 'ok')
-        .map(([k, v]) => `${k}: ${v}`)
+        .map(([k, v]) => {
+          if (typeof v !== 'object' || v === null) return `${k}: ${v}`;
+          // Format nested objects as key=value pairs
+          const inner = Object.entries(v as Record<string, unknown>)
+            .map(([ik, iv]) => `${ik}=${Array.isArray(iv) ? iv.join(',') : iv}`)
+            .join(', ');
+          return `${k}: ${inner}`;
+        })
         .join(', ');
       return extra ? `OK (${extra})` : 'OK';
     }

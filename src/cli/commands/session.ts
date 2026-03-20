@@ -8,7 +8,12 @@ registerCommand('grab', async (args: ParsedArgs, bridge: Bridge) => {
   if (args.flags['app']) {
     params.app = args.flags['app'];
   } else if (args.positional[0]) {
-    params.ref = args.positional[0];
+    const val = args.positional[0];
+    if (val.startsWith('@')) {
+      params.ref = val;
+    } else {
+      params.app = val;
+    }
   } else {
     return { data: { error: 'Usage: ac grab <@w1> or ac grab --app <name>' }, exitCode: 1 };
   }

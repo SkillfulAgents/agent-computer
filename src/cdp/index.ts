@@ -1,0 +1,11 @@
+export { CDPConnection } from './connection.js';
+export { discoverTargets, findPageTarget, waitForCDP } from './discovery.js';
+export { CDPAXTree } from './ax-tree.js';
+export { CDPInteractions } from './interactions.js';
+export { CDPClient } from './client.js';
+export { mapCDPRole, INTERACTIVE_ROLES } from './role-map.js';
+export { getBounds, toScreenCoords, resolveAllBounds } from './bounds.js';
+export { computeChanged, computeDiff } from './diff.js';
+export { findFreePort } from './port-manager.js';
+export type { CDPTarget, CDPAXNode, CDPNodeRef, CDPBoxModel } from './types.js';
+export type { CDPSnapshotOptions, CDPSnapshotResult } from './client.js';

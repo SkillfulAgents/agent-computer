@@ -266,6 +266,11 @@ export class AC {
     await this.bridge.send('quit', { name, ...options });
   }
 
+  /** Relaunch an application with CDP support (quit + launch with --remote-debugging-port) */
+  async relaunch(name: string, options: { wait?: boolean } = {}): Promise<void> {
+    await this.bridge.send('relaunch', { name, ...options });
+  }
+
   /** Switch to (activate) an application */
   async switch(name: string): Promise<void> {
     await this.bridge.send('switch', { name });

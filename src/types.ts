@@ -65,6 +65,8 @@ export interface AppInfo {
 
 export interface StatusInfo {
   grabbed_window: string | null;
+  grabbed_app: string | null;
+  grabbed_pid: number | null;
   last_snapshot_id: string | null;
   daemon_pid: number | null;
   daemon_uptime_ms: number | null;
