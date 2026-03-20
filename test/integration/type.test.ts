@@ -222,12 +222,14 @@ describe('Paste', () => {
   const bridge = new Bridge({ timeout: 20000 });
 
   beforeAll(async () => {
-    try { await bridge.send('quit', { name: 'TextEdit' }); } catch { /* ok */ }
-    await sleep(1000);
+    try { await bridge.send('quit', { name: 'TextEdit', force: true }); } catch { /* ok */ }
+    await sleep(1500);
     await bridge.send('launch', { name: 'TextEdit', wait: true });
     await sleep(2000);
-    // TextEdit may open a file browser — activate and create new document
+    // TextEdit may open a file browser — dismiss it and create new document
     await bridge.send('switch', { name: 'TextEdit' });
+    await sleep(500);
+    await bridge.send('key', { combo: 'escape' });
     await sleep(500);
     await bridge.send('key', { combo: 'cmd+n' });
     await sleep(1500);
@@ -302,5 +304,49 @@ describe('Paste', () => {
     } catch (err: any) {
       expect(err.code).toBe(-32602);
     }
+  });
+
+  test('key auto-switches to grabbed app and back', { timeout: 20000 }, async () => {
+    // Grab TextEdit window
+    await bridge.send('grab', { app: 'TextEdit' });
+    await sleep(300);
+
+    // Fill the textarea with text
+    const snap = await bridge.send('snapshot', { app: 'TextEdit', interactive: true }) as Record<string, unknown>;
+    const elements = snap.elements as any[];
+
+    function findTextArea(els: any[]): any {
+      function find(els: any[], role: string): any {
+        for (const el of els) {
+          if (el.role === role) return el;
+          if (el.children) { const found = find(el.children, role); if (found) return found; }
+        }
+      }
+      return find(els, 'textarea') || find(els, 'textfield');
+    }
+
+    const textArea = findTextArea(elements);
+    expect(textArea).toBeDefined();
+
+    await bridge.send('fill', { ref: textArea.ref, text: 'auto switch test' });
+    await sleep(300);
+
+    // Switch away from TextEdit (simulating the user being in Terminal)
+    await bridge.send('switch', { name: 'Finder' });
+    await sleep(500);
+
+    // Now send key cmd+a — should auto-switch to TextEdit (grabbed), select all, then switch back
+    const result = await bridge.send('key', { combo: 'cmd+a' }) as Record<string, unknown>;
+    expect(result.ok).toBe(true);
+    await sleep(500);
+
+    // Verify Finder is frontmost again (restored)
+    const apps = await bridge.send('apps') as Record<string, unknown>;
+    const appList = apps.apps as any[];
+    const finder = appList.find((a: any) => a.name === 'Finder');
+    expect(finder?.is_active).toBe(true);
+
+    // Clean up
+    await bridge.send('ungrab');
   });
 });

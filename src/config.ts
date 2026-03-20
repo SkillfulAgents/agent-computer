@@ -53,7 +53,7 @@ function loadEnvOverrides(): Partial<ACConfig> {
     }
   }
   // Boolean env vars
-  if (process.env.AC_TEXT === '1') {
+  if (process.env.AC_JSON === '1') {
     // This is handled at the CLI level, not config
   }
   if (process.env.AC_VERBOSE === '1') {

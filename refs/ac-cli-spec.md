@@ -8,7 +8,7 @@
 - **Short commands** — agents generate these token-by-token; fewer tokens = cheaper + faster
 - **Verb-first for actions** — `ac click`, not `ac element click`
 - **Typed refs** — snapshot returns prefixed refs: `@b3` (button), `@t5` (text field), etc.
-- **JSON-first** — all output is JSON by default; `--text` for human-readable
+- **Text-first** — all output is human-readable by default; `--json` for JSON
 - **Stateful context** — `grab` sets the active window; all subsequent commands target it
 - **Snapshot → act** — the core loop: `ac snapshot` → read refs → `ac click @b3`
 
@@ -59,7 +59,7 @@ Refs can be used anywhere a `<sel>` argument appears.
 
 | Flag                 | Description                                        |
 |----------------------|----------------------------------------------------|
-| `--text`             | Human-readable output (default is JSON)            |
+| `--json`             | JSON output (default is human-readable text)       |
 | `--timeout <ms>`     | Override default timeout (default: 10000)           |
 | `--verbose`          | Debug logging to stderr                            |
 | `--content-boundary` | Wrap output in delimiters for LLM safety           |
@@ -449,7 +449,7 @@ Environment variables (override config):
 |-----------------------|----------------------------------------|
 | `AC_TIMEOUT`          | Default timeout in ms.                 |
 | `AC_SCREENSHOT_DIR`   | Default screenshot output directory.   |
-| `AC_TEXT`             | Set to `1` for human-readable output.  |
+| `AC_JSON`             | Set to `1` for JSON output.            |
 | `AC_VERBOSE`          | Set to `1` for debug logging.          |
 
 ---

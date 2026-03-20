@@ -1,7 +1,7 @@
 import type { Element } from '../types.js';
 import { randomBytes } from 'crypto';
 
-// Format output based on --text flag
+// Format output — text mode is default, --json for JSON
 export function formatOutput(data: unknown, textMode: boolean): string {
   if (textMode) {
     return formatText(data);

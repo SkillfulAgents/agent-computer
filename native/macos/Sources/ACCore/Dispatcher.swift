@@ -1,5 +1,6 @@
 import Foundation
 import ApplicationServices
+import AppKit
 
 // MARK: - Method Dispatcher
 
@@ -375,7 +376,25 @@ class Dispatcher {
             self.lastSnapshotId = result["snapshot_id"] as? String
             self.lastSnapshotData = result
 
-            return .success(id: req.id, result: result)
+            // Check if the target app is Chromium/Electron and add a hint
+            var finalResult = result
+            let targetPid: pid_t?
+            if let appName = appName {
+                targetPid = NSWorkspace.shared.runningApplications.first(where: {
+                    $0.localizedName?.lowercased() == appName.lowercased()
+                })?.processIdentifier
+            } else if let ref = self.grabbedWindow,
+                      let info = self.windowManager.getWindowInfo(ref: ref),
+                      let pid = info["process_id"] as? Int {
+                targetPid = pid_t(pid)
+            } else {
+                targetPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            }
+            if let pid = targetPid, Apps.isChromiumApp(pid: pid) {
+                finalResult["hint"] = "This is a Chromium/Electron app. The accessibility tree may be limited. Consider using keyboard shortcuts, coordinate-based clicks (ac click x,y), or screenshots for navigation." as Any
+            }
+
+            return .success(id: req.id, result: finalResult)
         }
     }
 
@@ -461,19 +480,71 @@ class Dispatcher {
         }
     }
 
+    // MARK: - App Focus Helper (for CGEvent-based commands)
+
+    /// Activate the grabbed window's app and return the previously frontmost app.
+    /// CGEvent keystrokes go to the frontmost app, so we need to switch first.
+    /// Returns the app to restore afterwards, or nil if no switch was needed.
+    private func activateGrabbedApp(explicit appName: String? = nil) -> NSRunningApplication? {
+        let targetApp: String?
+        if let appName = appName {
+            targetApp = appName
+        } else if let ref = grabbedWindow {
+            // Resolve grabbed window ref to app name
+            if let info = windowManager.getWindowInfo(ref: ref) {
+                targetApp = info["app"] as? String
+            } else {
+                _ = windowManager.listWindows()
+                targetApp = windowManager.getWindowInfo(ref: ref)?["app"] as? String
+            }
+        } else {
+            return nil // No grab, no explicit app — send to frontmost
+        }
+
+        guard let targetApp = targetApp else { return nil }
+
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
+        // Only switch if we're not already in the target app
+        if previousApp?.localizedName?.lowercased() == targetApp.lowercased() {
+            return nil
+        }
+
+        // Activate target app
+        if let app = NSWorkspace.shared.runningApplications.first(where: {
+            $0.localizedName?.lowercased() == targetApp.lowercased()
+        }) {
+            app.activate(options: .activateIgnoringOtherApps)
+            Thread.sleep(forTimeInterval: 0.15)
+        }
+
+        return previousApp
+    }
+
+    /// Restore the previously frontmost app
+    private func restoreApp(_ app: NSRunningApplication?) {
+        guard let app = app else { return }
+        Thread.sleep(forTimeInterval: 0.1)
+        app.activate(options: .activateIgnoringOtherApps)
+    }
+
     // MARK: - Keyboard Methods
 
     private func registerKeyboardMethods() {
         register("type") { [weak self] req in
-            guard let _ = self else {
+            guard let self = self else {
                 return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
             }
             guard let text = req.paramString("text") else {
                 return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing text parameter")
             }
             let delay = req.paramInt("delay")
+            let appName = req.paramString("app")
 
+            let previousApp = self.activateGrabbedApp(explicit: appName)
             let (result, error) = Keyboard.typeText(text: text, delay: delay)
+            self.restoreApp(previousApp)
+
             if let error = error {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
                               message: error.error?.message ?? "Unknown error")
@@ -500,14 +571,21 @@ class Dispatcher {
             return .success(id: req.id, result: result!)
         }
 
-        register("key") { req in
+        register("key") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
             guard let combo = req.paramString("combo") else {
                 return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing combo parameter")
             }
             let repeatCount = req.paramInt("repeat") ?? 1
             let delay = req.paramInt("delay")
+            let appName = req.paramString("app")
 
+            let previousApp = self.activateGrabbedApp(explicit: appName)
             let (result, error) = Keyboard.key(combo: combo, repeat: repeatCount, delay: delay)
+            self.restoreApp(previousApp)
+
             if let error = error {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
                               message: error.error?.message ?? "Unknown error")
@@ -515,11 +593,19 @@ class Dispatcher {
             return .success(id: req.id, result: result!)
         }
 
-        register("keydown") { req in
+        register("keydown") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
             guard let key = req.paramString("key") else {
                 return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing key parameter")
             }
+            let appName = req.paramString("app")
+
+            let previousApp = self.activateGrabbedApp(explicit: appName)
             let (result, error) = Keyboard.keyUpDown(key: key, down: true)
+            self.restoreApp(previousApp)
+
             if let error = error {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
                               message: error.error?.message ?? "Unknown error")
@@ -527,11 +613,19 @@ class Dispatcher {
             return .success(id: req.id, result: result!)
         }
 
-        register("keyup") { req in
+        register("keyup") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
             guard let key = req.paramString("key") else {
                 return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing key parameter")
             }
+            let appName = req.paramString("app")
+
+            let previousApp = self.activateGrabbedApp(explicit: appName)
             let (result, error) = Keyboard.keyUpDown(key: key, down: false)
+            self.restoreApp(previousApp)
+
             if let error = error {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
                               message: error.error?.message ?? "Unknown error")
@@ -539,11 +633,19 @@ class Dispatcher {
             return .success(id: req.id, result: result!)
         }
 
-        register("paste") { req in
+        register("paste") { [weak self] req in
+            guard let self = self else {
+                return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
+            }
             guard let text = req.paramString("text") else {
                 return .error(id: req.id, code: RPCErrorCode.invalidParams, message: "Missing text parameter")
             }
+            let appName = req.paramString("app")
+
+            let previousApp = self.activateGrabbedApp(explicit: appName)
             let (result, error) = Keyboard.paste(text: text)
+            self.restoreApp(previousApp)
+
             if let error = error {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
                               message: error.error?.message ?? "Unknown error")

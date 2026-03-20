@@ -16,5 +16,10 @@ let package = Package(
             dependencies: ["ac-core"],
             path: "Tests/ACCoreTests"
         ),
+        .testTarget(
+            name: "ACCoreIntegrationTests",
+            dependencies: ["ac-core"],
+            path: "Tests/ACCoreIntegrationTests"
+        ),
     ]
 )

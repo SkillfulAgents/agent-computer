@@ -12,7 +12,8 @@ async function main(): Promise<void> {
   const config = resolveConfig();
 
   // Resolve global options
-  const textMode = parsed.flags['text'] === true || process.env.AC_TEXT === '1';
+  const jsonMode = parsed.flags['json'] === true || process.env.AC_JSON === '1';
+  const textMode = !jsonMode;
   const verbose = parsed.flags['verbose'] === true || process.env.AC_VERBOSE === '1';
   const contentBoundary = parsed.flags['content-boundary'] === true || config['content-boundary'];
   const maxOutput = typeof parsed.flags['max-output'] === 'string'
@@ -60,6 +61,11 @@ async function main(): Promise<void> {
   const bridge = new Bridge({ timeout });
   try {
     const result = await handler(parsed, bridge);
+    // Show hint (e.g., Chromium app warning) on stderr
+    if (result.data && typeof result.data === 'object' && 'hint' in (result.data as Record<string, unknown>)) {
+      const hint = (result.data as Record<string, unknown>).hint;
+      process.stderr.write(`\n⚠️  ${hint}\n\n`);
+    }
     output(result.data, textMode, contentBoundary, maxOutput);
     await bridge.disconnect();
     process.exit(result.exitCode);

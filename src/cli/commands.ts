@@ -93,7 +93,7 @@ Commands:
   version                             Print version
 
 Global options:
-  --text                Human-readable output (default: JSON)
+  --json                JSON output (default: human-readable text)
   --timeout <ms>        Override timeout (default: 10000)
   --verbose             Debug logging to stderr
   --content-boundary    Wrap output in delimiters

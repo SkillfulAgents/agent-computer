@@ -15,6 +15,7 @@ enum Apps {
                     "process_id": app.processIdentifier,
                     "is_active": app.isActive,
                     "is_hidden": app.isHidden,
+                    "is_chromium": isChromiumApp(app),
                 ] as [String: Any]
             }
     }
@@ -186,7 +187,46 @@ enum Apps {
             "process_id": app.processIdentifier,
             "is_active": app.isActive,
             "is_hidden": app.isHidden,
+            "is_chromium": isChromiumApp(app),
         ]
+    }
+
+    /// Detect if an app is Electron/Chromium-based by checking its bundle for known frameworks
+    static func isChromiumApp(_ app: NSRunningApplication) -> Bool {
+        guard let bundleURL = app.bundleURL else { return false }
+        let frameworksPath = bundleURL.appendingPathComponent("Contents/Frameworks")
+        let fm = FileManager.default
+
+        guard let contents = try? fm.contentsOfDirectory(atPath: frameworksPath.path) else {
+            return false
+        }
+
+        let chromiumMarkers = [
+            "Electron Framework.framework",
+            "Chromium Embedded Framework.framework",
+            "CefSharp.BrowserSubprocess",
+            "nwjs Framework.framework",
+        ]
+
+        for marker in chromiumMarkers {
+            if contents.contains(marker) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Check by app name or PID
+    static func isChromiumApp(name: String) -> Bool {
+        guard let app = findRunningApp(name) else { return false }
+        return isChromiumApp(app)
+    }
+
+    static func isChromiumApp(pid: pid_t) -> Bool {
+        guard let app = NSWorkspace.shared.runningApplications.first(where: {
+            $0.processIdentifier == pid
+        }) else { return false }
+        return isChromiumApp(app)
     }
 }
 

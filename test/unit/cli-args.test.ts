@@ -212,10 +212,10 @@ describe('CLI Argument Parsing', () => {
   });
 
   describe('global flags before command', () => {
-    test('--text before command', () => {
-      const result = parse('--text', 'snapshot');
+    test('--json before command', () => {
+      const result = parse('--json', 'snapshot');
       expect(result.command).toBe('snapshot');
-      expect(result.flags['text']).toBe(true);
+      expect(result.flags['json']).toBe(true);
     });
 
     test('--timeout before command', () => {
@@ -307,9 +307,9 @@ describe('Edge cases', () => {
   });
 
   test('multiple global flags before command', () => {
-    const result = parse('--text', '--verbose', '--timeout', '3000', 'snapshot');
+    const result = parse('--json', '--verbose', '--timeout', '3000', 'snapshot');
     expect(result.command).toBe('snapshot');
-    expect(result.flags['text']).toBe(true);
+    expect(result.flags['json']).toBe(true);
     expect(result.flags['verbose']).toBe(true);
     expect(result.flags['timeout']).toBe('3000');
   });
