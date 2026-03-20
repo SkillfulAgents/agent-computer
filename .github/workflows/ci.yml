@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm ci --force
       - run: npx tsc --noEmit
 
   unit-tests:
@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm ci --force
       - run: npm test
 
   swift-build:
@@ -51,8 +51,8 @@ jobs:
       - name: Build ac-core
         run: cd native/macos && swift build
 
-      - name: Swift tests
-        run: cd native/macos && swift test
+      - name: Swift unit tests (skip integration — requires GUI + accessibility)
+        run: cd native/macos && swift test --filter ACCoreTests
 
   swift-release-build:
     name: Swift Release Build
