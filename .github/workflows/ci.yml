@@ -13,26 +13,28 @@ concurrency:
 jobs:
   typecheck:
     name: Typecheck
-    runs-on: ubuntu-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci --force
+      - run: npm ci
       - run: npx tsc --noEmit
 
   unit-tests:
     name: Unit & Contract Tests
-    runs-on: ubuntu-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci --force
+      - run: npm ci
+      - name: Build ac-core (needed by bridge tests)
+        run: cd native/macos && swift build
       - run: npm test
 
   swift-build:
