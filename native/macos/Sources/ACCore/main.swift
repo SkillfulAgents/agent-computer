@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 // ac-core — Agent Computer native binary for macOS
 
@@ -12,6 +13,9 @@ if args.contains("--version") {
 
 // --daemon flag: start daemon server
 if args.contains("--daemon") {
+    // Initialize NSApplication so the daemon can create overlay windows (no dock icon)
+    NSApplication.shared.setActivationPolicy(.accessory)
+
     let dispatcher = Dispatcher()
     let server = DaemonServer(dispatcher: dispatcher)
     do {

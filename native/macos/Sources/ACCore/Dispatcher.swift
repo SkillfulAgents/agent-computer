@@ -22,6 +22,9 @@ class Dispatcher {
     var lastRefMap: [String: AXUIElement] = [:]
     var lastSnapshotData: [String: Any]? = nil
 
+    // Overlay
+    var haloOverlay: HaloOverlay? = nil
+
     init() {
         registerBuiltinMethods()
         registerAppMethods()
@@ -115,6 +118,23 @@ class Dispatcher {
                 return .success(id: req.id, result: ["key": key, "value": value])
             }
             return .success(id: req.id, result: ["key": key, "value": NSNull()])
+        }
+    }
+
+    // MARK: - Halo Overlay
+
+    private func showHalo(for ref: String) {
+        guard let windowID = windowManager.getWindowID(ref: ref) else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.haloOverlay?.remove()
+            self?.haloOverlay = HaloOverlay(windowID: windowID)
+        }
+    }
+
+    private func hideHalo() {
+        DispatchQueue.main.async { [weak self] in
+            self?.haloOverlay?.remove()
+            self?.haloOverlay = nil
         }
     }
 
@@ -271,6 +291,7 @@ class Dispatcher {
                                   message: "No window found for app: \(appName)")
                 }
                 self.grabbedWindow = ref
+                self.showHalo(for: ref)
                 let info = self.windowManager.getWindowInfo(ref: ref) ?? [:]
                 return .success(id: req.id, result: ["ok": true, "window": info] as [String: Any])
             }
@@ -291,6 +312,7 @@ class Dispatcher {
             }
 
             self.grabbedWindow = ref
+            self.showHalo(for: ref)
             let info = self.windowManager.getWindowInfo(ref: ref) ?? [:]
             return .success(id: req.id, result: ["ok": true, "window": info] as [String: Any])
         }
@@ -299,6 +321,7 @@ class Dispatcher {
             guard let self = self else {
                 return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Dispatcher deallocated")
             }
+            self.hideHalo()
             self.grabbedWindow = nil
             return .success(id: req.id, result: ["ok": true])
         }
