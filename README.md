@@ -15,13 +15,13 @@ Built for the **snapshot → act** loop: take a snapshot of any app's UI, get ty
 ## Installation
 
 ```bash
-npm install -g @datawizz/ac
+npm install -g @skillful-agents/ac
 ```
 
 Or as a project dependency:
 
 ```bash
-npm install @datawizz/ac
+npm install @skillful-agents/ac
 ```
 
 ### Requirements
@@ -256,7 +256,7 @@ Refs are stable within a snapshot but re-assigned on each new snapshot.
 Use `ac` programmatically from Node.js:
 
 ```typescript
-import { AC } from '@datawizz/ac';
+import { AC } from '@skillful-agents/ac';
 
 const ac = new AC();
 

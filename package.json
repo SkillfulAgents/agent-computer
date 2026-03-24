@@ -1,5 +1,5 @@
 {
-  "name": "@datawizz/ac",
+  "name": "@skillful-agents/ac",
   "version": "0.1.0",
   "description": "Agent Computer — native macOS desktop automation CLI for AI agents",
   "type": "module",

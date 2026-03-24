@@ -9,7 +9,7 @@
 **Phase 1:** macOS (Swift native binary). **Phase 2 (immediate follow-up):** Windows (C# / .NET native binary). Cross-platform support is a core differentiator — the architecture is designed from day one to accommodate both, but macOS ships first.
 
 ```
-npm install -g @datawizz/ac
+npm install -g @skillful-agents/ac
 ac snapshot -i     # works on macOS and Windows, same output format
 ```
 
@@ -19,7 +19,7 @@ ac snapshot -i     # works on macOS and Windows, same output format
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                     npm: @datawizz/ac                        │
+│                     npm: @skillful-agents/ac                        │
 │                                                              │
 │  ┌────────────────┐  ┌──────────────────┐  ┌──────────────┐ │
 │  │   CLI (TS)     │  │   SDK (TS)       │  │  MCP Server   │ │
@@ -64,7 +64,7 @@ ac snapshot -i     # works on macOS and Windows, same output format
 ## Package Structure
 
 ```
-@datawizz/ac/
+@skillful-agents/ac/
 │
 ├── package.json
 ├── tsconfig.json
@@ -249,7 +249,7 @@ Elements are returned as a hierarchical tree via nested `children`. The currentl
 The SDK is a thin async wrapper over the bridge. Every method returns a typed Promise.
 
 ```typescript
-import { ac } from '@datawizz/ac';
+import { ac } from '@skillful-agents/ac';
 
 // Session
 await ac.grab({ app: 'Safari' });
@@ -427,16 +427,16 @@ Follow the pattern used by `esbuild`, `swc`, `turbo`, and `@rollup/rollup`:
 ```jsonc
 // package.json
 {
-  "name": "@datawizz/ac",
+  "name": "@skillful-agents/ac",
   "version": "0.1.0",
   "bin": { "ac": "./bin/ac.js" },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "optionalDependencies": {
-    "@datawizz/ac-darwin-arm64": "0.1.0",
-    "@datawizz/ac-darwin-x64": "0.1.0",
-    "@datawizz/ac-win32-x64": "0.1.0",
-    "@datawizz/ac-win32-arm64": "0.1.0"
+    "@skillful-agents/ac-darwin-arm64": "0.1.0",
+    "@skillful-agents/ac-darwin-x64": "0.1.0",
+    "@skillful-agents/ac-win32-x64": "0.1.0",
+    "@skillful-agents/ac-win32-arm64": "0.1.0"
   }
 }
 ```
@@ -444,9 +444,9 @@ Follow the pattern used by `esbuild`, `swc`, `turbo`, and `@rollup/rollup`:
 Each platform package contains just the binary:
 
 ```jsonc
-// @datawizz/ac-darwin-arm64/package.json
+// @skillful-agents/ac-darwin-arm64/package.json
 {
-  "name": "@datawizz/ac-darwin-arm64",
+  "name": "@skillful-agents/ac-darwin-arm64",
   "version": "0.1.0",
   "os": ["darwin"],
   "cpu": ["arm64"],
@@ -465,10 +465,10 @@ import { platform, arch } from 'os';
 import { join } from 'path';
 
 const PLATFORM_MAP: Record<string, string> = {
-  'darwin-arm64':  '@datawizz/ac-darwin-arm64',
-  'darwin-x64':    '@datawizz/ac-darwin-x64',
-  'win32-x64':     '@datawizz/ac-win32-x64',
-  'win32-arm64':   '@datawizz/ac-win32-arm64',
+  'darwin-arm64':  '@skillful-agents/ac-darwin-arm64',
+  'darwin-x64':    '@skillful-agents/ac-darwin-x64',
+  'win32-x64':     '@skillful-agents/ac-win32-x64',
+  'win32-arm64':   '@skillful-agents/ac-win32-arm64',
 };
 
 export function resolveBinary(): string {

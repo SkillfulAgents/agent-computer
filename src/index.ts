@@ -1,4 +1,4 @@
-// @datawizz/ac — TypeScript SDK for macOS desktop automation
+// @skillful-agents/ac — TypeScript SDK for macOS desktop automation
 
 export type {
   Element,

@@ -99,7 +99,7 @@ export interface DiffResult {
  *
  * @example
  * ```ts
- * import { AC } from '@datawizz/ac';
+ * import { AC } from '@skillful-agents/ac';
  *
  * const ac = new AC();
  * await ac.launch('TextEdit');

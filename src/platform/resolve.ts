@@ -35,10 +35,10 @@ export function resolveBinary(): string {
   // In production: look for the npm optional dependency
   const key = `${os}-${cpu === 'arm64' ? 'arm64' : 'x64'}`;
   const PLATFORM_MAP: Record<string, string> = {
-    'darwin-arm64': '@datawizz/ac-darwin-arm64',
-    'darwin-x64': '@datawizz/ac-darwin-x64',
-    'win32-x64': '@datawizz/ac-win32-x64',
-    'win32-arm64': '@datawizz/ac-win32-arm64',
+    'darwin-arm64': '@skillful-agents/ac-darwin-arm64',
+    'darwin-x64': '@skillful-agents/ac-darwin-x64',
+    'win32-x64': '@skillful-agents/ac-win32-x64',
+    'win32-arm64': '@skillful-agents/ac-win32-arm64',
   };
 
   const pkg = PLATFORM_MAP[key];
