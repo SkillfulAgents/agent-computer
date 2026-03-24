@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-swift-arm64:
     name: Build Swift (arm64)
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +26,7 @@ jobs:
 
   build-swift-x64:
     name: Build Swift (x64)
-    runs-on: macos-13
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
 
@@ -39,9 +39,45 @@ jobs:
           name: ac-core-darwin-x64
           path: native/macos/.build/release/ac-core
 
+  build-dotnet-x64:
+    name: Build .NET (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build release binary (self-contained)
+        run: cd native/windows && dotnet publish ACCore/ACCore.csproj -c Release -r win-x64 --self-contained -o publish-x64
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ac-core-win32-x64
+          path: native/windows/publish-x64/ac-core.exe
+
+  build-dotnet-arm64:
+    name: Build .NET (arm64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build release binary (self-contained)
+        run: cd native/windows && dotnet publish ACCore/ACCore.csproj -c Release -r win-arm64 --self-contained -o publish-arm64
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ac-core-win32-arm64
+          path: native/windows/publish-arm64/ac-core.exe
+
   build-ts:
     name: Build TypeScript
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -61,8 +97,8 @@ jobs:
 
   package-and-release:
     name: Package & Release
-    runs-on: macos-14
-    needs: [build-swift-arm64, build-swift-x64, build-ts]
+    runs-on: macos-26
+    needs: [build-swift-arm64, build-swift-x64, build-dotnet-x64, build-dotnet-arm64, build-ts]
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +115,8 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Download arm64 binary
+      # --- macOS arm64 tarball ---
+      - name: Download macOS arm64 binary
         uses: actions/download-artifact@v4
         with:
           name: ac-core-darwin-arm64
@@ -88,15 +125,13 @@ jobs:
       - name: Make binary executable
         run: chmod +x bin/ac-core
 
-      - name: Create arm64 tarball
+      - name: Create macOS arm64 tarball
         run: |
-          tar czf ac-v${{ github.ref_name }}-darwin-arm64.tar.gz \
+          tar czf ac-${{ github.ref_name }}-darwin-arm64.tar.gz \
             dist/ bin/ac-core schema/ package.json README.md
 
-      - name: Replace with x64 binary
-        run: rm bin/ac-core
-
-      - name: Download x64 binary
+      # --- macOS x64 tarball ---
+      - name: Download macOS x64 binary
         uses: actions/download-artifact@v4
         with:
           name: ac-core-darwin-x64
@@ -105,11 +140,34 @@ jobs:
       - name: Make binary executable
         run: chmod +x bin/ac-core
 
-      - name: Create x64 tarball
+      - name: Create macOS x64 tarball
         run: |
-          tar czf ac-v${{ github.ref_name }}-darwin-x64.tar.gz \
+          tar czf ac-${{ github.ref_name }}-darwin-x64.tar.gz \
             dist/ bin/ac-core schema/ package.json README.md
 
+      # --- Windows x64 zip ---
+      - run: rm -f bin/ac-core
+      - name: Download Windows x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ac-core-win32-x64
+          path: bin/
+
+      - name: Create Windows x64 zip
+        run: zip -r ac-${{ github.ref_name }}-win32-x64.zip dist/ bin/ac-core.exe schema/ package.json README.md
+
+      # --- Windows arm64 zip ---
+      - run: rm -f bin/ac-core.exe
+      - name: Download Windows arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ac-core-win32-arm64
+          path: bin/
+
+      - name: Create Windows arm64 zip
+        run: zip -r ac-${{ github.ref_name }}-win32-arm64.zip dist/ bin/ac-core.exe schema/ package.json README.md
+
+      # --- GitHub Release ---
       - name: Determine if pre-release
         id: prerelease
         run: |
@@ -127,15 +185,15 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
           files: |
-            ac-v${{ github.ref_name }}-darwin-arm64.tar.gz
-            ac-v${{ github.ref_name }}-darwin-x64.tar.gz
+            ac-${{ github.ref_name }}-darwin-arm64.tar.gz
+            ac-${{ github.ref_name }}-darwin-x64.tar.gz
+            ac-${{ github.ref_name }}-win32-x64.zip
+            ac-${{ github.ref_name }}-win32-arm64.zip
 
-      # Publish to npm with the arm64 binary bundled
+      # Publish to npm with the arm64 macOS binary bundled
       # (most macOS users are on Apple Silicon)
-      - name: Swap to arm64 binary for npm
-        run: rm bin/ac-core
-
-      - name: Download arm64 binary again
+      - run: rm -f bin/ac-core.exe
+      - name: Download arm64 macOS binary for npm
         uses: actions/download-artifact@v4
         with:
           name: ac-core-darwin-arm64

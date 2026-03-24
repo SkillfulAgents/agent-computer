@@ -1,3 +1,4 @@
+.claude/
 node_modules/
 dist/
 .build/
@@ -8,3 +9,7 @@ dist/
 *.tsbuildinfo
 native/macos/.build/
 native/macos/.swiftpm/
+
+# .NET build artifacts
+native/windows/**/bin/
+native/windows/**/obj/

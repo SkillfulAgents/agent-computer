@@ -2,7 +2,7 @@ import { connect, type Socket } from 'net';
 import { execFileSync, spawn, type ChildProcess } from 'child_process';
 import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import { errorFromCode, ACError, TimeoutError } from './errors.js';
-import { SOCKET_PATH, DAEMON_JSON_PATH, AC_DIR } from './platform/darwin.js';
+import { SOCKET_PATH, DAEMON_JSON_PATH, AC_DIR, IS_NAMED_PIPE } from './platform/index.js';
 import { resolveBinary } from './platform/resolve.js';
 import { CDPClient } from './cdp/client.js';
 import { findFreePort } from './cdp/port-manager.js';
@@ -101,6 +101,7 @@ export class Bridge {
     timer: ReturnType<typeof setTimeout>;
   }>();
   private buffer = '';
+  private bomChecked = false;
 
   // CDP routing state
   private cdpClients = new Map<number, CDPClient>(); // pid → CDPClient
@@ -173,12 +174,16 @@ export class Bridge {
       return parseResponse(raw);
     } catch (err: any) {
       if (err instanceof ACError) throw err;
-      // Try to parse error stdout
-      if (err.stdout) {
+      // Try to parse error stdout (may contain BOM on Windows)
+      const errOut = (err.stdout || err.output?.[1]?.toString() || '').replace(/^\uFEFF/, '').trim();
+      if (errOut) {
         try {
-          const raw = JSON.parse(err.stdout.trim());
+          const raw = JSON.parse(errOut);
           return parseResponse(raw);
-        } catch { /* fall through */ }
+        } catch (parseErr: any) {
+          if (parseErr instanceof ACError) throw parseErr;
+          /* fall through */
+        }
       }
       throw new Error(`One-shot command failed: ${err.message}`);
     }
@@ -507,7 +512,15 @@ export class Bridge {
 
     // Spawn new daemon
     await this.spawnDaemon();
+
     await this.waitForSocket();
+
+    // Poll for daemon.json to appear (the daemon may flush it slightly after the socket/pipe is ready)
+    const djStart = Date.now();
+    while (Date.now() - djStart < 2000) {
+      if (existsSync(DAEMON_JSON_PATH)) break;
+      await sleep(50);
+    }
 
     const newInfo = this.readDaemonInfo();
     if (!newInfo) {
@@ -542,15 +555,37 @@ export class Bridge {
 
   private async waitForSocket(maxWait = 5000): Promise<void> {
     const start = Date.now();
+
+    if (IS_NAMED_PIPE) {
+      // Named pipes don't exist as files — probe by attempting connection
+      while (Date.now() - start < maxWait) {
+        try {
+          await this.probeConnection(SOCKET_PATH);
+          return;
+        } catch { /* not ready yet */ }
+        await sleep(100);
+      }
+      throw new Error(`Daemon pipe did not become available within ${maxWait}ms`);
+    }
+
+    // Unix socket: wait for file to appear on disk
     while (Date.now() - start < maxWait) {
       if (existsSync(SOCKET_PATH)) {
-        // Give the server a moment to start listening
         await sleep(50);
         return;
       }
       await sleep(50);
     }
     throw new Error(`Daemon socket did not appear within ${maxWait}ms`);
+  }
+
+  private probeConnection(path: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const sock = connect({ path });
+      const timeout = setTimeout(() => { sock.destroy(); reject(new Error('probe timeout')); }, 500);
+      sock.on('connect', () => { clearTimeout(timeout); sock.destroy(); resolve(); });
+      sock.on('error', (err) => { clearTimeout(timeout); reject(err); });
+    });
   }
 
   private connectToSocket(socketPath: string): Promise<void> {
@@ -565,6 +600,7 @@ export class Bridge {
         clearTimeout(timeout);
         this.socket = sock;
         this.buffer = '';
+        this.bomChecked = false;
         this.setupSocketHandlers();
         resolve();
       });
@@ -580,7 +616,13 @@ export class Bridge {
     if (!this.socket) return;
 
     this.socket.on('data', (chunk: Buffer) => {
-      this.buffer += chunk.toString();
+      let str = chunk.toString();
+      // Strip UTF-8 BOM if present (Windows .NET may emit one on first chunk)
+      if (!this.bomChecked) {
+        if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1);
+        this.bomChecked = true;
+      }
+      this.buffer += str;
       this.processBuffer();
     });
 
@@ -648,7 +690,10 @@ export class Bridge {
   }
 
   private cleanupStaleFiles(): void {
-    try { unlinkSync(SOCKET_PATH); } catch { /* ok */ }
+    // Named pipes are kernel objects — no file to unlink
+    if (!IS_NAMED_PIPE) {
+      try { unlinkSync(SOCKET_PATH); } catch { /* ok */ }
+    }
     try { unlinkSync(DAEMON_JSON_PATH); } catch { /* ok */ }
   }
 

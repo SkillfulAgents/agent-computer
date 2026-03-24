@@ -13,7 +13,7 @@ concurrency:
 jobs:
   typecheck:
     name: Typecheck
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,9 +23,9 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
-  unit-tests:
-    name: Unit & Contract Tests
-    runs-on: macos-14
+  unit-tests-macos:
+    name: Unit & Contract Tests (macOS)
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,9 +37,26 @@ jobs:
         run: cd native/macos && swift build
       - run: npm test
 
+  unit-tests-windows:
+    name: Unit & Contract Tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: npm ci
+      - name: Build ac-core
+        run: cd native/windows && dotnet build ACCore/ACCore.csproj
+      - run: npm test
+
   swift-build:
     name: Swift Build & Test
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +75,7 @@ jobs:
 
   swift-release-build:
     name: Swift Release Build
-    runs-on: macos-14
+    runs-on: macos-26
     needs: swift-build
     steps:
       - uses: actions/checkout@v4
@@ -79,9 +96,50 @@ jobs:
           name: ac-core-macos-arm64
           path: native/macos/.build/release/ac-core
 
+  dotnet-build:
+    name: .NET Build & Test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('native/windows/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build ac-core
+        run: cd native/windows && dotnet build ACCore/ACCore.csproj
+
+      - name: .NET unit tests
+        run: cd native/windows && dotnet test ACCore.Tests/ACCore.Tests.csproj
+
+  dotnet-release-build:
+    name: .NET Release Build
+    runs-on: windows-latest
+    needs: dotnet-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build release binary (self-contained x64)
+        run: cd native/windows && dotnet publish ACCore/ACCore.csproj -c Release -r win-x64 --self-contained -o publish-x64
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ac-core-windows-x64
+          path: native/windows/publish-x64/ac-core.exe
+
   test-app-build:
     name: Build TestApp
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -89,9 +147,9 @@ jobs:
         run: cd native/macos/TestApp && swift build
 
   # Integration, functional, and E2E tests require:
-  #   - macOS with GUI session
-  #   - Accessibility permission granted to the terminal
-  #   - Screen Recording permission (for screenshots)
+  #   - A desktop with GUI session
+  #   - Accessibility permissions (macOS) or UIAutomation access (Windows)
+  #   - Screen Recording permission (macOS, for screenshots)
   #
   # These cannot run on GitHub Actions runners.
   # Run locally with:

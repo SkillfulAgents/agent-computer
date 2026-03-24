@@ -162,7 +162,7 @@ function formatWindowsList(windows: Record<string, unknown>[]): string {
 function formatAppsList(apps: Record<string, unknown>[]): string {
   if (apps.length === 0) return 'No running apps';
   return apps.map(a =>
-    `${a.name}${a.is_active ? ' *' : ''}${a.is_hidden ? ' (hidden)' : ''} [${a.bundle_id}]`
+    `${a.name}${a.is_active ? ' *' : ''}${a.is_hidden ? ' (hidden)' : ''}${a.bundle_id ? ` [${a.bundle_id}]` : ''}`
   ).join('\n');
 }
 
