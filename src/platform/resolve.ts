@@ -1,21 +1,33 @@
 import { platform, arch } from 'os';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
-import { fileURLToPath } from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+/**
+ * Get directory of this file. Works in both ESM and CJS:
+ * - CJS: __dirname is a global provided by Node
+ * - ESM: use import.meta.url (wrapped in eval to avoid CJS parse error)
+ */
+function getModuleDir(): string {
+  if (typeof __dirname !== 'undefined') return __dirname;
+  // ESM fallback — eval hides import.meta from the CJS parser
+  // eslint-disable-next-line no-eval
+  const url: string = eval('import.meta.url');
+  const { fileURLToPath } = require('url') as typeof import('url');
+  return dirname(fileURLToPath(url));
+}
+const _dirname = getModuleDir();
 
 /**
  * Find the package root by walking up from __dirname until we find package.json.
  * Works whether running from source (src/platform/) or compiled (dist/src/platform/).
  */
 function findProjectRoot(): string {
-  let dir = __dirname;
+  let dir = _dirname;
   for (let i = 0; i < 5; i++) {
     if (existsSync(join(dir, 'package.json'))) return dir;
     dir = dirname(dir);
   }
-  return join(__dirname, '..', '..');
+  return join(_dirname, '..', '..');
 }
 
 export function resolveBinary(): string {
