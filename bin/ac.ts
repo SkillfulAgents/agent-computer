@@ -51,7 +51,7 @@ async function main(): Promise<void> {
         await bridge.disconnect();
         process.exit(err.exitCode);
       }
-      console.error(`Unknown command: ${parsed.command}. Run 'ac --help' for usage.`);
+      console.error(`Unknown command: ${parsed.command}. Run 'agent-computer --help' for usage.`);
       await bridge.disconnect();
       process.exit(126);
     }

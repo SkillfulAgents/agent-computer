@@ -20,7 +20,7 @@ registerCommand('move', async (args: ParsedArgs, bridge: Bridge) => {
   const y = args.positional[2];
 
   if (!ref) {
-    return { data: { error: 'Usage: ac move <@w> <x> <y>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer move <@w> <x> <y>' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = { ref };
@@ -39,7 +39,7 @@ registerCommand('resize', async (args: ParsedArgs, bridge: Bridge) => {
   const h = args.positional[2];
 
   if (!ref) {
-    return { data: { error: 'Usage: ac resize <@w> <w> <h>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer resize <@w> <w> <h>' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = { ref };
@@ -55,7 +55,7 @@ registerCommand('resize', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('bounds', async (args: ParsedArgs, bridge: Bridge) => {
   const ref = args.positional[0];
   if (!ref) {
-    return { data: { error: 'Usage: ac bounds <@w> <x> <y> <w> <h> | ac bounds <@w> --preset <name>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer bounds <@w> <x> <y> <w> <h> | agent-computer bounds <@w> --preset <name>' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = { ref };

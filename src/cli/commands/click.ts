@@ -6,7 +6,7 @@ import type { Bridge } from '../../bridge.js';
 registerCommand('click', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac click <ref|x,y|label> [--right] [--double] [--count N] [--modifiers keys]' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer click <ref|x,y|label> [--right] [--double] [--count N] [--modifiers keys]' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = {};
@@ -39,7 +39,7 @@ registerCommand('click', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('hover', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac hover <ref|x,y>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer hover <ref|x,y>' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = {};

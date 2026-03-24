@@ -4,7 +4,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const CONFIG_DIR = join(homedir(), '.config', 'ac');
+const CONFIG_DIR = join(homedir(), '.config', 'agent-computer');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 describe('Config Defaults', () => {
@@ -15,7 +15,7 @@ describe('Config Defaults', () => {
   });
 
   test('screenshot-dir is /tmp/ac', () => {
-    expect(defaults['screenshot-dir']).toBe('/tmp/ac');
+    expect(defaults['screenshot-dir']).toBe('/tmp/agent-computer');
   });
 
   test('screenshot-format is png', () => {
@@ -95,7 +95,7 @@ describe('Config File Operations', () => {
     setConfigValue('default-timeout', 7777);
     const config = resolveConfig();
     expect(config['default-timeout']).toBe(7777);
-    expect(config['screenshot-dir']).toBe('/tmp/ac'); // default preserved
+    expect(config['screenshot-dir']).toBe('/tmp/agent-computer'); // default preserved
   });
 
   test('getConfigValue reads from merged config', () => {

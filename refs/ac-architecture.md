@@ -1,16 +1,16 @@
-# `ac` — Multi-Platform Architecture
+# `agent-computer` — Multi-Platform Architecture
 
 > Agent Computer: a cross-platform desktop automation CLI for AI agents.
 
 ## Overview
 
-`ac` is a single npm package that provides a unified CLI and TypeScript SDK for desktop automation across macOS and Windows. The command surface is identical on both platforms — agents don't need to know which OS they're running on.
+`agent-computer` is a single npm package that provides a unified CLI and TypeScript SDK for desktop automation across macOS and Windows. The command surface is identical on both platforms — agents don't need to know which OS they're running on.
 
 **Phase 1:** macOS (Swift native binary). **Phase 2 (immediate follow-up):** Windows (C# / .NET native binary). Cross-platform support is a core differentiator — the architecture is designed from day one to accommodate both, but macOS ships first.
 
 ```
 npm install -g @skillful-agents/ac
-ac snapshot -i     # works on macOS and Windows, same output format
+agent-computer snapshot -i     # works on macOS and Windows, same output format
 ```
 
 ---

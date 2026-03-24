@@ -1,4 +1,4 @@
-# `ac` — Agent Computer CLI for macOS
+# `agent-computer` — Agent Computer CLI for macOS
 
 > Native macOS desktop automation CLI for AI agents.
 > Inspired by [agent-browser](https://github.com/vercel-labs/agent-browser) and [Peekaboo](https://github.com/steipete/Peekaboo).
@@ -458,14 +458,14 @@ Environment variables (override config):
 
 ```bash
 # 1. Discover what's running
-ac apps --running
+agent-computer apps --running
 
 # 2. Grab a window to work with
-ac windows
-ac grab @w1
+agent-computer windows
+agent-computer grab @w1
 
 # 3. Understand the UI
-ac snapshot -i
+agent-computer snapshot -i
 # Output:
 # [@w1] Window "My App"
 #   [@g1] Group "Toolbar"
@@ -476,17 +476,17 @@ ac snapshot -i
 #     [@l4] Link "Help" (enabled, 700,44 40×16)
 
 # 4. Interact
-ac click @b1
-ac fill @t2 "Hello, world!"
-ac menu "Format > Make Rich Text"
-ac key cmd+s
+agent-computer click @b1
+agent-computer fill @t2 "Hello, world!"
+agent-computer menu "Format > Make Rich Text"
+agent-computer key cmd+s
 
 # 5. Verify
-ac snapshot -i
-ac screenshot ~/Desktop/result.png
+agent-computer snapshot -i
+agent-computer screenshot ~/Desktop/result.png
 
 # 6. Release context
-ac ungrab
+agent-computer ungrab
 ```
 
 ---
@@ -497,7 +497,7 @@ ac ungrab
 
 Peekaboo is excellent and the heaviest inspiration here. `ac` differs in philosophy:
 
-1. **CLI-only, no AI built in.** `ac` is a dumb tool — it doesn't bundle LLM calls or agent loops. The agent (Claude Code, custom scripts, etc.) calls `ac` as a tool. This keeps the CLI fast, simple, and provider-agnostic.
+1. **CLI-only, no AI built in.** `agent-computer` is a dumb tool — it doesn't bundle LLM calls or agent loops. The agent (Claude Code, custom scripts, etc.) calls `ac` as a tool. This keeps the CLI fast, simple, and provider-agnostic.
 
 2. **Stateful grab model.** The `grab` / `ungrab` pattern reduces token cost by not requiring a window ref on every command. For agents making 20+ calls per task, this adds up.
 

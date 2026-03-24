@@ -23,25 +23,25 @@ npm run build:all
 
 ```bash
 # Direct TS execution (no build needed, best for iterating)
-alias ac="npx tsx bin/ac.ts"
+alias agent-computer="npx tsx bin/ac.ts"
 
 # Or use compiled JS (requires npm run build)
-alias ac="node dist/bin/ac.js"
+alias agent-computer="node dist/bin/ac.js"
 ```
 
 ## Daemon management
 
 ```bash
-ac daemon start      # Start daemon
-ac daemon stop       # Stop daemon
-ac daemon restart    # Restart (picks up new Swift binary)
-ac daemon status     # Check if running
+agent-computer daemon start      # Start daemon
+agent-computer daemon stop       # Stop daemon
+agent-computer daemon restart    # Restart (picks up new Swift binary)
+agent-computer daemon status     # Check if running
 ```
 
 After changing Swift code, rebuild and restart:
 
 ```bash
-npm run build:swift && ac daemon restart
+npm run build:swift && agent-computer daemon restart
 ```
 
 TS changes via `tsx` are picked up immediately (no restart needed).
@@ -66,5 +66,5 @@ npm run typecheck
 ## Debugging
 
 ```bash
-AC_VERBOSE=1 ac snapshot   # Daemon stderr logged
+AC_VERBOSE=1 agent-computer snapshot   # Daemon stderr logged
 ```

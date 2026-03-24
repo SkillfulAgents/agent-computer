@@ -15,7 +15,7 @@ registerCommand('grab', async (args: ParsedArgs, bridge: Bridge) => {
       params.app = val;
     }
   } else {
-    return { data: { error: 'Usage: ac grab <@w1> or ac grab --app <name>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer grab <@w1> or agent-computer grab --app <name>' }, exitCode: 1 };
   }
 
   const result = await bridge.send('grab', params);

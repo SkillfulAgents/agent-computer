@@ -9,7 +9,7 @@ registerCommand('clipboard', async (args: ParsedArgs, bridge: Bridge) => {
     case 'set': {
       const text = args.positional[0];
       if (!text) {
-        return { data: { error: 'Usage: ac clipboard set <text>' }, exitCode: 1 };
+        return { data: { error: 'Usage: agent-computer clipboard set <text>' }, exitCode: 1 };
       }
       const result = await bridge.send('clipboard_set', { text });
       return { data: result, exitCode: 0 };

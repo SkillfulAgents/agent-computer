@@ -18,7 +18,7 @@ registerCommand('find', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('read', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac read <ref> [--attr <name>]' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer read <ref> [--attr <name>]' }, exitCode: 1 };
   }
 
   const parsed = parseSelector(sel);
@@ -42,7 +42,7 @@ registerCommand('is', async (args: ParsedArgs, bridge: Bridge) => {
   const state = args.subcommand;
   const sel = args.positional[0];
   if (!state || !sel) {
-    return { data: { error: 'Usage: ac is <visible|enabled|focused|checked> <ref>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer is <visible|enabled|focused|checked> <ref>' }, exitCode: 1 };
   }
 
   const parsed = parseSelector(sel);
@@ -55,7 +55,7 @@ registerCommand('is', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('box', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac box <ref>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer box <ref>' }, exitCode: 1 };
   }
   const parsed = parseSelector(sel);
   const ref = parsed.type === 'ref' ? parsed.ref : sel;
@@ -67,7 +67,7 @@ registerCommand('box', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('children', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac children <ref>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer children <ref>' }, exitCode: 1 };
   }
   const parsed = parseSelector(sel);
   const ref = parsed.type === 'ref' ? parsed.ref : sel;

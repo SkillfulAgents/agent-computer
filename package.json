@@ -1,10 +1,10 @@
 {
-  "name": "@skillful-agents/ac",
+  "name": "@skillful-agents/agent-computer",
   "version": "0.0.2",
   "description": "Agent Computer — cross-platform desktop automation CLI for AI agents",
   "type": "module",
   "bin": {
-    "ac": "./dist/bin/ac.js"
+    "agent-computer": "./dist/bin/ac.js"
   },
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -38,7 +38,7 @@
     "test:all": "vitest run",
     "test:watch": "vitest watch test/unit/ test/contract/",
     "typecheck": "tsc --noEmit",
-    "ac": "tsx bin/ac.ts"
+    "agent-computer": "tsx bin/ac.ts"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

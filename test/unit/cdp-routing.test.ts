@@ -3,7 +3,7 @@ import { describe, test, expect } from 'vitest';
 describe('CDP Routing Logic', () => {
 
   // --- CLI session command: ref vs app name detection ---
-  // Bug #1: `ac grab Spotify` sent { ref: "Spotify" } instead of { app: "Spotify" }
+  // Bug #1: `agent-computer grab Spotify` sent { ref: "Spotify" } instead of { app: "Spotify" }
 
   test('grab CLI sends app param for plain app name', () => {
     function buildGrabParams(positional: string): Record<string, unknown> {

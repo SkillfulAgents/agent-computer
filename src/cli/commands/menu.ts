@@ -25,7 +25,7 @@ registerCommand('menu', async (args: ParsedArgs, bridge: Bridge) => {
     return { data: result, exitCode: 0 };
   }
 
-  return { data: { error: 'Usage: ac menu <path> | ac menu list [name]' }, exitCode: 1 };
+  return { data: { error: 'Usage: agent-computer menu <path> | agent-computer menu list [name]' }, exitCode: 1 };
 });
 
 registerCommand('menubar', async (args: ParsedArgs, bridge: Bridge) => {

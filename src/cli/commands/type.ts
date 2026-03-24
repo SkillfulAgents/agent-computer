@@ -6,7 +6,7 @@ import type { Bridge } from '../../bridge.js';
 registerCommand('type', async (args: ParsedArgs, bridge: Bridge) => {
   const text = args.positional[0];
   if (!text) {
-    return { data: { error: 'Usage: ac type <text> [--delay ms]' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer type <text> [--delay ms]' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = { text };
@@ -20,7 +20,7 @@ registerCommand('fill', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   const text = args.positional[1];
   if (!sel || !text) {
-    return { data: { error: 'Usage: ac fill <ref> <text>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer fill <ref> <text>' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = { text };
@@ -38,7 +38,7 @@ registerCommand('fill', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('key', async (args: ParsedArgs, bridge: Bridge) => {
   const combo = args.positional[0];
   if (!combo) {
-    return { data: { error: 'Usage: ac key <combo> [--repeat n]' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer key <combo> [--repeat n]' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = { combo };
@@ -52,7 +52,7 @@ registerCommand('key', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('keydown', async (args: ParsedArgs, bridge: Bridge) => {
   const key = args.positional[0];
   if (!key) {
-    return { data: { error: 'Usage: ac keydown <key>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer keydown <key>' }, exitCode: 1 };
   }
 
   const result = await bridge.send('keydown', { key });
@@ -62,7 +62,7 @@ registerCommand('keydown', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('keyup', async (args: ParsedArgs, bridge: Bridge) => {
   const key = args.positional[0];
   if (!key) {
-    return { data: { error: 'Usage: ac keyup <key>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer keyup <key>' }, exitCode: 1 };
   }
 
   const result = await bridge.send('keyup', { key });
@@ -72,7 +72,7 @@ registerCommand('keyup', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('paste', async (args: ParsedArgs, bridge: Bridge) => {
   const text = args.positional[0];
   if (!text) {
-    return { data: { error: 'Usage: ac paste <text>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer paste <text>' }, exitCode: 1 };
   }
 
   const result = await bridge.send('paste', { text });

@@ -6,7 +6,7 @@ import type { Bridge } from '../../bridge.js';
 registerCommand('scroll', async (args: ParsedArgs, bridge: Bridge) => {
   const direction = args.subcommand;
   if (!direction || !['up', 'down', 'left', 'right'].includes(direction)) {
-    return { data: { error: 'Usage: ac scroll <up|down|left|right> [amount] [--on <sel>] [--smooth] [--pixels <n>]' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer scroll <up|down|left|right> [amount] [--on <sel>] [--smooth] [--pixels <n>]' }, exitCode: 1 };
   }
 
   const params: Record<string, unknown> = { direction };
@@ -23,7 +23,7 @@ registerCommand('scroll', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('focus', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac focus <ref>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer focus <ref>' }, exitCode: 1 };
   }
 
   const parsed = parseSelector(sel);
@@ -39,7 +39,7 @@ registerCommand('select', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   const value = args.positional[1];
   if (!sel || !value) {
-    return { data: { error: 'Usage: ac select <ref> <value>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer select <ref> <value>' }, exitCode: 1 };
   }
 
   const parsed = parseSelector(sel);
@@ -52,7 +52,7 @@ registerCommand('select', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('check', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac check <ref>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer check <ref>' }, exitCode: 1 };
   }
   const parsed = parseSelector(sel);
   const ref = parsed.type === 'ref' ? parsed.ref : sel;
@@ -64,7 +64,7 @@ registerCommand('check', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('uncheck', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   if (!sel) {
-    return { data: { error: 'Usage: ac uncheck <ref>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer uncheck <ref>' }, exitCode: 1 };
   }
   const parsed = parseSelector(sel);
   const ref = parsed.type === 'ref' ? parsed.ref : sel;
@@ -77,7 +77,7 @@ registerCommand('set', async (args: ParsedArgs, bridge: Bridge) => {
   const sel = args.positional[0];
   const value = args.positional[1];
   if (!sel || value === undefined) {
-    return { data: { error: 'Usage: ac set <ref> <value>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer set <ref> <value>' }, exitCode: 1 };
   }
   const parsed = parseSelector(sel);
   const ref = parsed.type === 'ref' ? parsed.ref : sel;

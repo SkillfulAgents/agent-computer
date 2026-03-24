@@ -6,7 +6,7 @@ import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const CONFIG_FILE = join(homedir(), '.config', 'ac', 'config.json');
+const CONFIG_FILE = join(homedir(), '.config', 'agent-computer', 'config.json');
 
 describe('Command Registration', () => {
   test('getCommand returns handler for registered command', () => {
@@ -52,7 +52,7 @@ describe('Help Command', () => {
     const result = await handler(parseArgs(['help']), null as any);
     expect(result.exitCode).toBe(0);
     expect(typeof result.data).toBe('string');
-    expect(result.data as string).toContain('ac —');
+    expect(result.data as string).toContain('agent-computer —');
     expect(result.data as string).toContain('snapshot');
     expect(result.data as string).toContain('click');
   });
@@ -67,7 +67,7 @@ describe('Config Command', () => {
 
   afterEach(() => {
     if (originalConfig !== null) {
-      mkdirSync(join(homedir(), '.config', 'ac'), { recursive: true });
+      mkdirSync(join(homedir(), '.config', 'agent-computer'), { recursive: true });
       writeFileSync(CONFIG_FILE, originalConfig);
     } else {
       try { rmSync(CONFIG_FILE); } catch { /* ok */ }

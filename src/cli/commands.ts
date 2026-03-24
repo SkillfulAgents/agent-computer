@@ -57,9 +57,9 @@ registerCommand('version', async () => {
 });
 
 registerCommand('help', async () => {
-  const help = `ac — Agent Computer CLI for macOS
+  const help = `agent-computer — Agent Computer CLI for macOS
 
-Usage: ac <command> [options]
+Usage: agent-computer <command> [options]
 
 Commands:
   snapshot              Snapshot the accessibility tree
@@ -99,7 +99,7 @@ Global options:
   --content-boundary    Wrap output in delimiters
   --max-output <n>      Truncate output to N characters
 
-See: https://github.com/datawizz/ac`;
+See: https://github.com/datawizz/agent-computer`;
 
   return { data: help, exitCode: 0 };
 });
@@ -138,7 +138,7 @@ registerCommand('config', async (args) => {
       const key = args.positional[0] as keyof ACConfig | undefined;
       const value = args.positional[1];
       if (!key || value === undefined) {
-        return { data: { error: 'Usage: ac config set <key> <value>' }, exitCode: 1 };
+        return { data: { error: 'Usage: agent-computer config set <key> <value>' }, exitCode: 1 };
       }
       const defaults = getDefaults();
       if (!(key in defaults)) {

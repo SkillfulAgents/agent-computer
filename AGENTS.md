@@ -1,4 +1,4 @@
-# AGENTS.md — Agent Development Guide for `ac`
+# AGENTS.md — Agent Development Guide for `agent-computer`
 
 ## How to work on this project
 

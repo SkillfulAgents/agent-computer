@@ -12,7 +12,7 @@ registerCommand('apps', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('launch', async (args: ParsedArgs, bridge: Bridge) => {
   const name = args.positional[0];
   if (!name) {
-    return { data: { error: 'Usage: ac launch <name> [--wait] [--background]' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer launch <name> [--wait] [--background]' }, exitCode: 1 };
   }
   const params: Record<string, unknown> = {
     name,
@@ -29,7 +29,7 @@ registerCommand('launch', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('relaunch', async (args: ParsedArgs, bridge: Bridge) => {
   const name = args.positional[0];
   if (!name) {
-    return { data: { error: 'Usage: ac relaunch <name>' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer relaunch <name>' }, exitCode: 1 };
   }
   const result = await bridge.send('relaunch', { name });
   return { data: result, exitCode: 0 };
@@ -38,7 +38,7 @@ registerCommand('relaunch', async (args: ParsedArgs, bridge: Bridge) => {
 registerCommand('quit', async (args: ParsedArgs, bridge: Bridge) => {
   const name = args.positional[0];
   if (!name) {
-    return { data: { error: 'Usage: ac quit <name> [--force]' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer quit <name> [--force]' }, exitCode: 1 };
   }
   const result = await bridge.send('quit', { name, force: args.flags['force'] === true });
   return { data: result, exitCode: 0 };
@@ -46,21 +46,21 @@ registerCommand('quit', async (args: ParsedArgs, bridge: Bridge) => {
 
 registerCommand('hide', async (args: ParsedArgs, bridge: Bridge) => {
   const name = args.positional[0];
-  if (!name) return { data: { error: 'Usage: ac hide <name>' }, exitCode: 1 };
+  if (!name) return { data: { error: 'Usage: agent-computer hide <name>' }, exitCode: 1 };
   const result = await bridge.send('hide', { name });
   return { data: result, exitCode: 0 };
 });
 
 registerCommand('unhide', async (args: ParsedArgs, bridge: Bridge) => {
   const name = args.positional[0];
-  if (!name) return { data: { error: 'Usage: ac unhide <name>' }, exitCode: 1 };
+  if (!name) return { data: { error: 'Usage: agent-computer unhide <name>' }, exitCode: 1 };
   const result = await bridge.send('unhide', { name });
   return { data: result, exitCode: 0 };
 });
 
 registerCommand('switch', async (args: ParsedArgs, bridge: Bridge) => {
   const name = args.positional[0];
-  if (!name) return { data: { error: 'Usage: ac switch <name>' }, exitCode: 1 };
+  if (!name) return { data: { error: 'Usage: agent-computer switch <name>' }, exitCode: 1 };
   const result = await bridge.send('switch', { name });
   return { data: result, exitCode: 0 };
 });

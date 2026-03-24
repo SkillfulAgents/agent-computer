@@ -13,14 +13,14 @@ export interface ACConfig {
 
 const DEFAULTS: ACConfig = {
   'default-timeout': 10000,
-  'screenshot-dir': '/tmp/ac',
+  'screenshot-dir': '/tmp/agent-computer',
   'screenshot-format': 'png',
   retina: false,
   'content-boundary': false,
   'daemon-idle-timeout': 300000,
 };
 
-const CONFIG_DIR = join(homedir(), '.config', 'ac');
+const CONFIG_DIR = join(homedir(), '.config', 'agent-computer');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 // Environment variable overrides

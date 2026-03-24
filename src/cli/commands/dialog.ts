@@ -22,7 +22,7 @@ registerCommand('dialog', async (args: ParsedArgs, bridge: Bridge) => {
   if (sub === 'file') {
     const path = args.positional[0];
     if (!path) {
-      return { data: { error: 'Usage: ac dialog file <path>' }, exitCode: 1 };
+      return { data: { error: 'Usage: agent-computer dialog file <path>' }, exitCode: 1 };
     }
     const params: Record<string, unknown> = { path };
     if (args.flags['app']) params.app = args.flags['app'];

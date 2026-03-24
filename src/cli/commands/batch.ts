@@ -6,7 +6,7 @@ registerCommand('batch', async (args: ParsedArgs, bridge: Bridge) => {
   const jsonStr = args.positional[0] || args.subcommand;
 
   if (!jsonStr) {
-    return { data: { error: 'Usage: ac batch \'[["method", ...args], ...]\'' }, exitCode: 1 };
+    return { data: { error: 'Usage: agent-computer batch \'[["method", ...args], ...]\'' }, exitCode: 1 };
   }
 
   let commands: unknown[];

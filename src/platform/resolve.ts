@@ -10,7 +10,7 @@ export function resolveBinary(): string {
   const cpu = arch();
 
   if (os !== 'darwin' && os !== 'win32') {
-    throw new Error(`Unsupported platform: ${os}. ac supports macOS and Windows.`);
+    throw new Error(`Unsupported platform: ${os}. agent-computer supports macOS and Windows.`);
   }
 
   const ext = os === 'win32' ? '.exe' : '';
