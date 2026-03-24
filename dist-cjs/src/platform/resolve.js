@@ -4,21 +4,9 @@ exports.resolveBinary = resolveBinary;
 const os_1 = require("os");
 const path_1 = require("path");
 const fs_1 = require("fs");
-/**
- * Get directory of this file. Works in both ESM and CJS:
- * - CJS: __dirname is a global provided by Node
- * - ESM: use import.meta.url (wrapped in eval to avoid CJS parse error)
- */
-function getModuleDir() {
-    if (typeof __dirname !== 'undefined')
-        return __dirname;
-    // ESM fallback — eval hides import.meta from the CJS parser
-    // eslint-disable-next-line no-eval
-    const url = eval('import.meta.url');
-    const { fileURLToPath } = require('url');
-    return (0, path_1.dirname)(fileURLToPath(url));
-}
-const _dirname = getModuleDir();
+// ESM: use import.meta.url directly (CJS build patches this line — see scripts/fix-cjs-resolve.js)
+// @ts-ignore — import.meta.url is valid in ESM; CJS tsconfig rejects it but post-build script fixes it
+const _dirname = __dirname;
 /**
  * Find the package root by walking up from __dirname until we find package.json.
  * Works whether running from source (src/platform/) or compiled (dist/src/platform/).

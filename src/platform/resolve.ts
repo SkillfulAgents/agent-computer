@@ -1,21 +1,11 @@
 import { platform, arch } from 'os';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 
-/**
- * Get directory of this file. Works in both ESM and CJS:
- * - CJS: __dirname is a global provided by Node
- * - ESM: use import.meta.url (wrapped in eval to avoid CJS parse error)
- */
-function getModuleDir(): string {
-  if (typeof __dirname !== 'undefined') return __dirname;
-  // ESM fallback — eval hides import.meta from the CJS parser
-  // eslint-disable-next-line no-eval
-  const url: string = eval('import.meta.url');
-  const { fileURLToPath } = require('url') as typeof import('url');
-  return dirname(fileURLToPath(url));
-}
-const _dirname = getModuleDir();
+// ESM: use import.meta.url directly (CJS build patches this line — see scripts/fix-cjs-resolve.js)
+// @ts-ignore — import.meta.url is valid in ESM; CJS tsconfig rejects it but post-build script fixes it
+const _dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Find the package root by walking up from __dirname until we find package.json.
