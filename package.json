@@ -1,6 +1,6 @@
 {
   "name": "@skillful-agents/ac",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Agent Computer — cross-platform desktop automation CLI for AI agents",
   "type": "module",
   "bin": {
