@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
+import { connect } from 'net';
 import { existsSync, readFileSync, unlinkSync, mkdirSync } from 'fs';
-import { AC_DIR, SOCKET_PATH, DAEMON_JSON_PATH } from './platform/darwin.js';
+import { AC_DIR, SOCKET_PATH, DAEMON_JSON_PATH, IS_NAMED_PIPE } from './platform/index.js';
 import { resolveBinary } from './platform/resolve.js';
 
 export interface DaemonStatus {
@@ -42,18 +43,32 @@ export class DaemonManager {
     });
     proc.unref();
 
-    // Wait for socket to appear
+    // Wait for daemon to be ready
     const start = Date.now();
-    while (Date.now() - start < 5000) {
-      if (existsSync(SOCKET_PATH)) {
+    if (IS_NAMED_PIPE) {
+      // Named pipes: wait for daemon.json to appear (pipe has no file)
+      while (Date.now() - start < 5000) {
+        if (existsSync(DAEMON_JSON_PATH)) {
+          await sleep(50);
+          break;
+        }
         await sleep(50);
-        break;
       }
-      await sleep(50);
-    }
-
-    if (!existsSync(SOCKET_PATH)) {
-      throw new Error('Daemon failed to start: socket not created within 5s');
+      if (!existsSync(DAEMON_JSON_PATH)) {
+        throw new Error('Daemon failed to start: daemon.json not created within 5s');
+      }
+    } else {
+      // Unix socket: wait for socket file to appear
+      while (Date.now() - start < 5000) {
+        if (existsSync(SOCKET_PATH)) {
+          await sleep(50);
+          break;
+        }
+        await sleep(50);
+      }
+      if (!existsSync(SOCKET_PATH)) {
+        throw new Error('Daemon failed to start: socket not created within 5s');
+      }
     }
 
     const info = this.readDaemonInfo();
@@ -69,15 +84,31 @@ export class DaemonManager {
     if (!info) return;
 
     if (this.isProcessAlive(info.pid)) {
-      try {
-        process.kill(info.pid, 'SIGTERM');
-      } catch { /* ok */ }
+      // On Windows, SIGTERM is a hard kill — try graceful RPC shutdown first
+      if (IS_NAMED_PIPE) {
+        try {
+          await this.sendShutdownRPC(info.socket);
+        } catch { /* fall through to SIGTERM */ }
+      }
 
-      // Wait for process to exit
-      const start = Date.now();
+      // Wait for process to exit (may already be gone from RPC shutdown)
+      let start = Date.now();
       while (Date.now() - start < 3000) {
         if (!this.isProcessAlive(info.pid)) break;
         await sleep(50);
+      }
+
+      // Send SIGTERM if still alive
+      if (this.isProcessAlive(info.pid)) {
+        try {
+          process.kill(info.pid, 'SIGTERM');
+        } catch { /* ok */ }
+
+        start = Date.now();
+        while (Date.now() - start < 3000) {
+          if (!this.isProcessAlive(info.pid)) break;
+          await sleep(50);
+        }
       }
 
       // Force kill if still alive
@@ -89,6 +120,22 @@ export class DaemonManager {
     }
 
     this.cleanupStale();
+  }
+
+  private sendShutdownRPC(socketPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const sock = connect({ path: socketPath });
+      const timeout = setTimeout(() => { sock.destroy(); reject(new Error('shutdown timeout')); }, 2000);
+      sock.on('connect', () => {
+        const req = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'shutdown', params: {} }) + '\n';
+        sock.write(req, () => {
+          clearTimeout(timeout);
+          // Give daemon a moment to process before closing
+          setTimeout(() => { sock.destroy(); resolve(); }, 100);
+        });
+      });
+      sock.on('error', (err) => { clearTimeout(timeout); reject(err); });
+    });
   }
 
   async status(): Promise<DaemonStatus> {
@@ -131,7 +178,9 @@ export class DaemonManager {
   }
 
   private cleanupStale(): void {
-    try { unlinkSync(SOCKET_PATH); } catch { /* ok */ }
+    if (!IS_NAMED_PIPE) {
+      try { unlinkSync(SOCKET_PATH); } catch { /* ok */ }
+    }
     try { unlinkSync(DAEMON_JSON_PATH); } catch { /* ok */ }
   }
 

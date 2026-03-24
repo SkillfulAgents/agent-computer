@@ -57,7 +57,7 @@ export interface DialogInfo {
 
 export interface AppInfo {
   name: string;
-  bundle_id: string;
+  bundle_id?: string;
   process_id: number;
   is_active: boolean;
   is_hidden: boolean;

@@ -1,8 +1,8 @@
-import { describe, test, expect, afterEach } from 'vitest';
+import { describe, test, expect, afterEach, beforeEach } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { Bridge } from '../../src/bridge.js';
 import { DaemonManager } from '../../src/daemon.js';
-import { SOCKET_PATH, DAEMON_JSON_PATH } from '../../src/platform/darwin.js';
+import { SOCKET_PATH, DAEMON_JSON_PATH, IS_NAMED_PIPE } from '../../src/platform/index.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -39,11 +39,16 @@ describe('Daemon Lifecycle', () => {
     expect(bridge.isRunning()).toBe(true);
   });
 
-  test('daemon creates socket file', async () => {
+  test('daemon creates socket/pipe endpoint', async () => {
     bridge = new Bridge();
     await bridge.send('ping');
 
-    expect(existsSync(SOCKET_PATH)).toBe(true);
+    if (IS_NAMED_PIPE) {
+      // Named pipes don't exist as files — verify connectivity instead
+      expect(bridge.isRunning()).toBe(true);
+    } else {
+      expect(existsSync(SOCKET_PATH)).toBe(true);
+    }
   });
 
   test('daemon writes PID file with required fields', async () => {
@@ -89,18 +94,20 @@ describe('Daemon Lifecycle', () => {
     expect(bridge.isRunning()).toBe(true);
   });
 
-  test('daemon shutdown removes socket', async () => {
+  test('daemon shutdown cleans up', async () => {
     bridge = new Bridge();
     await bridge.send('ping');
-    expect(existsSync(SOCKET_PATH)).toBe(true);
+
+    if (!IS_NAMED_PIPE) {
+      expect(existsSync(SOCKET_PATH)).toBe(true);
+    }
 
     await bridge.shutdown();
     await sleep(300);
     bridge = null;
 
-    // Socket should be cleaned up (daemon removes on shutdown)
-    // Note: socket may or may not be cleaned up immediately depending on timing
     // The important thing is the daemon process is gone
+    // Socket file cleanup may or may not be immediate
   });
 
   test('malformed data does not crash daemon', async () => {
@@ -147,7 +154,9 @@ describe('DaemonManager', () => {
     const status = await manager.start();
     expect(status.running).toBe(true);
     expect(status.pid).toBeGreaterThan(0);
-    expect(existsSync(SOCKET_PATH)).toBe(true);
+    if (!IS_NAMED_PIPE) {
+      expect(existsSync(SOCKET_PATH)).toBe(true);
+    }
   });
 
   test('status shows running daemon', async () => {

@@ -1,7 +1,7 @@
 {
   "name": "@datawizz/ac",
   "version": "0.1.0",
-  "description": "Agent Computer — native macOS desktop automation CLI for AI agents",
+  "description": "Agent Computer — cross-platform desktop automation CLI for AI agents",
   "type": "module",
   "bin": {
     "ac": "./dist/bin/ac.js"
@@ -17,6 +17,7 @@
   "files": [
     "dist/",
     "bin/ac-core",
+    "bin/ac-core.exe",
     "scripts/",
     "schema/",
     "README.md",
@@ -25,7 +26,8 @@
   "scripts": {
     "build": "tsc",
     "build:swift": "cd native/macos && swift build -c release",
-    "build:all": "npm run build && npm run build:swift",
+    "build:dotnet": "cd native/windows && dotnet build ACCore/ACCore.csproj",
+    "build:all": "npm run build && (node -e \"process.exit(process.platform==='win32'?0:1)\" && npm run build:dotnet || npm run build:swift)",
     "postinstall": "node scripts/postinstall.js || true",
     "prepublishOnly": "npm run build",
     "test": "vitest run test/contract/ test/unit/",
@@ -48,9 +50,9 @@
   },
   "engines": {
     "node": ">=20",
-    "os": "darwin"
+    "os": "darwin || win32"
   },
-  "os": ["darwin"],
+  "os": ["darwin", "win32"],
   "cpu": ["arm64", "x64"],
   "license": "MIT",
   "repository": {
