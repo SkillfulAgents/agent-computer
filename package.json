@@ -16,8 +16,7 @@
   },
   "files": [
     "dist/",
-    "bin/ac-core",
-    "bin/ac-core.exe",
+    "bin/ac-core-*",
     "scripts/",
     "schema/",
     "README.md",

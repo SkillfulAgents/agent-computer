@@ -2,7 +2,6 @@ import { platform, arch } from 'os';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,9 +14,10 @@ export function resolveBinary(): string {
   }
 
   const ext = os === 'win32' ? '.exe' : '';
+  const key = `${os}-${cpu === 'arm64' ? 'arm64' : 'x64'}`;
 
-  // Bundled binary (release package)
-  const bundledPath = join(__dirname, '..', '..', 'bin', `ac-core${ext}`);
+  // Bundled platform-specific binary (npm package)
+  const bundledPath = join(__dirname, '..', '..', 'bin', `ac-core-${key}${ext}`);
   if (existsSync(bundledPath)) {
     return bundledPath;
   }
@@ -52,32 +52,11 @@ export function resolveBinary(): string {
     }
   }
 
-  // In production: look for the npm optional dependency
-  const key = `${os}-${cpu === 'arm64' ? 'arm64' : 'x64'}`;
-  const PLATFORM_MAP: Record<string, string> = {
-    'darwin-arm64': '@skillful-agents/ac-darwin-arm64',
-    'darwin-x64': '@skillful-agents/ac-darwin-x64',
-    'win32-x64': '@skillful-agents/ac-win32-x64',
-    'win32-arm64': '@skillful-agents/ac-win32-arm64',
-  };
-
-  const pkg = PLATFORM_MAP[key];
-  if (!pkg) {
-    throw new Error(`Unsupported platform/arch: ${key}`);
-  }
-
-  try {
-    const require = createRequire(import.meta.url);
-    const pkgDir = require.resolve(`${pkg}/package.json`);
-    return join(dirname(pkgDir), 'bin', `ac-core${ext}`);
-  } catch {
-    const buildHint = os === 'win32'
-      ? 'cd native/windows && dotnet build'
-      : 'cd native/macos && swift build -c release';
-    throw new Error(
-      `Native binary not found for ${key}. ` +
-      `Run: npm install ${pkg}\n` +
-      `Or build from source: ${buildHint}`,
-    );
-  }
+  const buildHint = os === 'win32'
+    ? 'cd native/windows && dotnet build'
+    : 'cd native/macos && swift build -c release';
+  throw new Error(
+    `Native binary not found for ${key}. ` +
+    `Build from source: ${buildHint}`,
+  );
 }

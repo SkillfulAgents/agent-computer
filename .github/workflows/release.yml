@@ -191,17 +191,22 @@ jobs:
             ac-${{ github.ref_name }}-win32-x64.zip
             ac-${{ github.ref_name }}-win32-arm64.zip
 
-      # Publish to npm with the arm64 macOS binary bundled
-      # (most macOS users are on Apple Silicon)
-      - run: rm -f bin/ac-core.exe
-      - name: Download arm64 macOS binary for npm
+      # Publish to npm with all platform binaries bundled
+      - name: Clean bin/ for npm
+        run: rm -f bin/ac-core bin/ac-core.exe
+
+      - name: Download all binaries for npm
         uses: actions/download-artifact@v4
         with:
-          name: ac-core-darwin-arm64
-          path: bin/
+          path: _artifacts/
 
-      - name: Make binary executable
-        run: chmod +x bin/ac-core
+      - name: Stage platform binaries
+        run: |
+          cp _artifacts/ac-core-darwin-arm64/ac-core bin/ac-core-darwin-arm64
+          cp _artifacts/ac-core-darwin-x64/ac-core   bin/ac-core-darwin-x64
+          cp _artifacts/ac-core-win32-x64/ac-core.exe  bin/ac-core-win32-x64.exe
+          cp _artifacts/ac-core-win32-arm64/ac-core.exe bin/ac-core-win32-arm64.exe
+          chmod +x bin/ac-core-darwin-arm64 bin/ac-core-darwin-x64
 
       - name: Publish to npm
         run: npm publish --access public --tag ${{ steps.prerelease.outputs.npm_tag }}

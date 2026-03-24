@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Verify the bundled binary matches the current platform/arch
+// Verify a bundled binary exists for the current platform/arch
 import { platform, arch } from 'os';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
@@ -8,14 +8,18 @@ import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const binaryPath = join(__dirname, '..', 'bin', 'ac-core');
+const os = platform();
+const cpu = arch() === 'arm64' ? 'arm64' : 'x64';
+const ext = os === 'win32' ? '.exe' : '';
+const key = `${os}-${cpu}`;
+const binaryPath = join(__dirname, '..', 'bin', `ac-core-${key}${ext}`);
 
 if (!existsSync(binaryPath)) {
-  // No bundled binary — user will need to build from source
-  if (platform() === 'darwin') {
-    console.log('\n⚠️  ac: No pre-built binary found.');
-    console.log('   Build from source: cd native/macos && swift build -c release\n');
-  }
+  const buildHint = os === 'win32'
+    ? 'cd native/windows && dotnet build'
+    : 'cd native/macos && swift build -c release';
+  console.log(`\n⚠️  ac: No pre-built binary found for ${key}.`);
+  console.log(`   Build from source: ${buildHint}\n`);
   process.exit(0);
 }
 
@@ -23,10 +27,9 @@ if (!existsSync(binaryPath)) {
 try {
   execFileSync(binaryPath, ['--version'], { timeout: 5000, stdio: 'pipe' });
 } catch (err) {
-  if (platform() !== 'darwin') {
-    console.log('\n⚠️  ac: This package only supports macOS.\n');
-  } else {
-    console.log(`\n⚠️  ac: Bundled binary may not match your architecture (${arch()}).`);
-    console.log('   Rebuild from source: cd native/macos && swift build -c release\n');
-  }
+  console.log(`\n⚠️  ac: Bundled binary for ${key} failed to execute.`);
+  const buildHint = os === 'win32'
+    ? 'cd native/windows && dotnet build'
+    : 'cd native/macos && swift build -c release';
+  console.log(`   Rebuild from source: ${buildHint}\n`);
 }
