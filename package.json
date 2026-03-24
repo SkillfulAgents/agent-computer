@@ -1,6 +1,6 @@
 {
   "name": "@skillful-agents/ac",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Agent Computer — cross-platform desktop automation CLI for AI agents",
   "type": "module",
   "bin": {
@@ -52,8 +52,14 @@
     "node": ">=20",
     "os": "darwin || win32"
   },
-  "os": ["darwin", "win32"],
-  "cpu": ["arm64", "x64"],
+  "os": [
+    "darwin",
+    "win32"
+  ],
+  "cpu": [
+    "arm64",
+    "x64"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
