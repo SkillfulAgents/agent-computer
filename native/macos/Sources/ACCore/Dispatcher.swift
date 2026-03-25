@@ -534,6 +534,20 @@ class Dispatcher {
             guard let result = result else {
                 return .error(id: req.id, code: RPCErrorCode.invalidRequest, message: "Click failed")
             }
+
+            // Trigger ripple animation on the halo overlay
+            if let halo = self.haloOverlay {
+                var ripplePoint: CGPoint?
+                if let bounds = result["bounds"] as? [Double], bounds.count >= 4 {
+                    ripplePoint = CGPoint(x: bounds[0] + bounds[2] / 2.0, y: bounds[1] + bounds[3] / 2.0)
+                } else if let x = x, let y = y {
+                    ripplePoint = CGPoint(x: x, y: y)
+                }
+                if let pt = ripplePoint {
+                    DispatchQueue.main.async { halo.showRipple(at: pt) }
+                }
+            }
+
             return .success(id: req.id, result: result)
         }
 

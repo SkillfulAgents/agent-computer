@@ -281,6 +281,128 @@ class HaloOverlay {
         }
     }
 
+    // MARK: - Ripple Animation
+
+    /// Show a ripple animation at a screen point (CG coordinates, top-left origin).
+    func showRipple(at screenPoint: CGPoint) {
+        guard let window = overlayWindow, let contentView = window.contentView?.layer else { return }
+
+        let screenHeight = NSScreen.main?.frame.height ?? 0
+        let appKitY = screenHeight - screenPoint.y
+        let localX = screenPoint.x - window.frame.origin.x
+        let localY = appKitY - window.frame.origin.y
+
+        let maxRadius: CGFloat = 90
+        let ringPath = CGPath(
+            ellipseIn: CGRect(x: -maxRadius, y: -maxRadius, width: maxRadius * 2, height: maxRadius * 2),
+            transform: nil
+        )
+
+        // Outer ring — expands and fades
+        let ring = CAShapeLayer()
+        ring.path = ringPath
+        ring.fillColor = blueColor.withAlphaComponent(0.25).cgColor
+        ring.strokeColor = blueColor.withAlphaComponent(0.9).cgColor
+        ring.lineWidth = 3.5
+        ring.position = CGPoint(x: localX, y: localY)
+        ring.transform = CATransform3DMakeScale(0.05, 0.05, 1)
+        ring.opacity = 0
+        ring.shadowColor = blueColor.cgColor
+        ring.shadowRadius = 15
+        ring.shadowOpacity = 0.8
+        ring.shadowOffset = .zero
+        contentView.addSublayer(ring)
+
+        // Middle ring — slightly delayed
+        let middle = CAShapeLayer()
+        middle.path = ringPath
+        middle.fillColor = blueColor.withAlphaComponent(0.1).cgColor
+        middle.strokeColor = purpleColor.withAlphaComponent(0.7).cgColor
+        middle.lineWidth = 2.5
+        middle.position = CGPoint(x: localX, y: localY)
+        middle.transform = CATransform3DMakeScale(0.05, 0.05, 1)
+        middle.opacity = 0
+        middle.shadowColor = purpleColor.cgColor
+        middle.shadowRadius = 10
+        middle.shadowOpacity = 0.6
+        middle.shadowOffset = .zero
+        contentView.addSublayer(middle)
+
+        // Inner ring — most delayed, smallest
+        let inner = CAShapeLayer()
+        inner.path = ringPath
+        inner.fillColor = nil
+        inner.strokeColor = NSColor.white.withAlphaComponent(0.6).cgColor
+        inner.lineWidth = 1.5
+        inner.position = CGPoint(x: localX, y: localY)
+        inner.transform = CATransform3DMakeScale(0.05, 0.05, 1)
+        inner.opacity = 0
+        contentView.addSublayer(inner)
+
+        let duration: CFTimeInterval = 0.65
+
+        // --- Outer ring animations ---
+        let outerScale = CABasicAnimation(keyPath: "transform.scale")
+        outerScale.fromValue = 0.05
+        outerScale.toValue = 1.0
+
+        let outerOpacity = CAKeyframeAnimation(keyPath: "opacity")
+        outerOpacity.values = [1.0, 0.7, 0.0]
+        outerOpacity.keyTimes = [0.0, 0.35, 1.0]
+
+        let outerGroup = CAAnimationGroup()
+        outerGroup.animations = [outerScale, outerOpacity]
+        outerGroup.duration = duration
+        outerGroup.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        outerGroup.fillMode = .forwards
+        outerGroup.isRemovedOnCompletion = false
+
+        // --- Middle ring animations ---
+        let midScale = CABasicAnimation(keyPath: "transform.scale")
+        midScale.fromValue = 0.05
+        midScale.toValue = 0.75
+
+        let midOpacity = CAKeyframeAnimation(keyPath: "opacity")
+        midOpacity.values = [0.0, 0.9, 0.0]
+        midOpacity.keyTimes = [0.0, 0.3, 1.0]
+
+        let midGroup = CAAnimationGroup()
+        midGroup.animations = [midScale, midOpacity]
+        midGroup.duration = duration * 0.8
+        midGroup.beginTime = CACurrentMediaTime() + 0.06
+        midGroup.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        midGroup.fillMode = .forwards
+        midGroup.isRemovedOnCompletion = false
+
+        // --- Inner ring animations ---
+        let innerScale = CABasicAnimation(keyPath: "transform.scale")
+        innerScale.fromValue = 0.05
+        innerScale.toValue = 0.5
+
+        let innerOpacity = CAKeyframeAnimation(keyPath: "opacity")
+        innerOpacity.values = [0.0, 0.8, 0.0]
+        innerOpacity.keyTimes = [0.0, 0.25, 1.0]
+
+        let innerGroup = CAAnimationGroup()
+        innerGroup.animations = [innerScale, innerOpacity]
+        innerGroup.duration = duration * 0.6
+        innerGroup.beginTime = CACurrentMediaTime() + 0.12
+        innerGroup.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        innerGroup.fillMode = .forwards
+        innerGroup.isRemovedOnCompletion = false
+
+        CATransaction.begin()
+        CATransaction.setCompletionBlock {
+            ring.removeFromSuperlayer()
+            middle.removeFromSuperlayer()
+            inner.removeFromSuperlayer()
+        }
+        ring.add(outerGroup, forKey: "ripple")
+        middle.add(midGroup, forKey: "ripple")
+        inner.add(innerGroup, forKey: "ripple")
+        CATransaction.commit()
+    }
+
     // MARK: - Cleanup
 
     func remove() {
