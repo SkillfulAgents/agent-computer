@@ -15,6 +15,11 @@ private let kCGSOrderAbove: Int32 = 1
 
 /// Creates a transparent, click-through overlay window around a target window
 /// with an animated glowing border to indicate agent control.
+///
+/// Z-ordering strategy: `orderFront` in setup places the overlay at the top of
+/// the stack.  CGSOrderWindow then moves it *down* to just above the target
+/// (cross-process downward moves work; upward moves do not).  `orderFront` is
+/// only called again if the overlay drops off the screen (e.g. after Exposé).
 class HaloOverlay {
     private var overlayWindow: NSWindow?
     private var trackingTimer: DispatchSourceTimer?
@@ -46,7 +51,7 @@ class HaloOverlay {
 
         let frame = calcOverlayFrame(from: windowBounds)
 
-        // Transparent, click-through, always-on-top window
+        // Transparent, click-through overlay window
         let window = NSWindow(
             contentRect: frame,
             styleMask: .borderless,
@@ -58,7 +63,7 @@ class HaloOverlay {
         window.level = .normal
         window.ignoresMouseEvents = true
         window.hasShadow = false
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        window.collectionBehavior = [.stationary]
 
         let contentView = NSView(frame: NSRect(origin: .zero, size: frame.size))
         contentView.wantsLayer = true
@@ -69,7 +74,7 @@ class HaloOverlay {
         window.orderFront(nil)
         overlayWindow = window
 
-        // Place overlay directly above the target window in the z-stack
+        // Move the overlay down from the top to just above the target
         orderAboveTarget()
 
         startTracking()
@@ -191,13 +196,38 @@ class HaloOverlay {
 
     // MARK: - Z-Order
 
-    /// Place the overlay directly above the target window in the global z-stack,
-    /// so windows above the target also appear above the overlay.
+    /// Check whether the overlay is above the target in the on-screen z-stack.
+    /// The CGWindowList is ordered front-to-back, so the overlay must appear at
+    /// a *lower* index than the target.  Returns false when the overlay is below
+    /// the target or not in the list at all (off-screen / after Exposé).
+    private func isOverlayAboveTarget() -> Bool {
+        guard let window = overlayWindow else { return false }
+        let overlayNum = CGWindowID(window.windowNumber)
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return false
+        }
+        for w in list {
+            let wid = w[kCGWindowNumber as String] as? CGWindowID ?? 0
+            if wid == overlayNum { return true }  // overlay comes first → above target
+            if wid == windowID   { return false } // target comes first → overlay is below
+        }
+        return false // overlay not found on screen
+    }
+
+    /// Position the overlay directly above the target in the z-stack.
+    /// CGSOrderWindow can move a window *down* (from above) but not *up*.
+    /// So when we detect the overlay has fallen below the target (after Exposé,
+    /// dock-click refocus, etc.) we call orderFront to put it back at the top,
+    /// then CGSOrderWindow moves it down to just above the target.
     private func orderAboveTarget() {
         guard let window = overlayWindow else { return }
-        // Bring to front first — this breaks stale z-position so CGSOrderWindow
-        // doesn't treat the subsequent call as a no-op.
-        window.orderFront(nil)
+
+        if !isOverlayAboveTarget() {
+            window.orderFront(nil)
+        }
+
         let cid = CGSMainConnectionID()
         let overlayWID = UInt32(window.windowNumber)
         _ = CGSOrderWindow(cid, overlayWID, kCGSOrderAbove, windowID)
