@@ -21,6 +21,7 @@ export { parseRef, isValidRef, refToRole, REF_PREFIXES } from './refs.js';
 export { ACError, ElementNotFoundError, PermissionDeniedError, TimeoutError } from './errors.js';
 export { Bridge, type BridgeOptions } from './bridge.js';
 export { AC } from './sdk.js';
+export { formatOutput } from './cli/output.js';
 
 // CDP support
 export { CDPClient, CDPConnection, CDPAXTree, CDPInteractions } from './cdp/index.js';
