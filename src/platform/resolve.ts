@@ -1,6 +1,6 @@
 import { platform, arch } from 'os';
 import { join, dirname } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 
 // ESM: use import.meta.url directly (CJS build patches this line — see scripts/fix-cjs-resolve.js)
@@ -8,13 +8,22 @@ import { fileURLToPath } from 'url';
 const _dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Find the package root by walking up from __dirname until we find package.json.
+ * Find the package root by walking up from __dirname until we find a real package.json
+ * (one with a "name" field, not just a CJS marker like {"type":"commonjs"}).
  * Works whether running from source (src/platform/) or compiled (dist/src/platform/).
  */
 function findProjectRoot(): string {
   let dir = _dirname;
-  for (let i = 0; i < 5; i++) {
-    if (existsSync(join(dir, 'package.json'))) return dir;
+  for (let i = 0; i < 10; i++) {
+    const pkgPath = join(dir, 'package.json');
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+        if (pkg.name) return dir;
+      } catch {
+        // Ignore parse errors
+      }
+    }
     dir = dirname(dir);
   }
   return join(_dirname, '..', '..');
