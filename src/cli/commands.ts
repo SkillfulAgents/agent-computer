@@ -2,6 +2,7 @@ import type { ParsedArgs } from './parser.js';
 import { Bridge } from '../bridge.js';
 import { DaemonManager } from '../daemon.js';
 import { resolveConfig, setConfigValue, resetConfig, getDefaults, type ACConfig } from '../config.js';
+import { generateBashCompletion, generateZshCompletion, installCompletions } from './completions.js';
 
 export type CommandResult = {
   data: unknown;
@@ -90,6 +91,7 @@ Commands:
   config [set <key> <val> | reset]    Configuration
   permissions [grant]                 Permission status
   doctor                              Run diagnostics
+  completion <bash|zsh>               Shell completion script
   version                             Print version
 
 Global options:
@@ -181,6 +183,21 @@ registerCommand('permissions', async (args, bridge) => {
   }
   const result = await bridge.send('permissions');
   return { data: result, exitCode: 0 };
+});
+
+registerCommand('completion', async (args) => {
+  const arg = args.positional[0] || 'install';
+  if (arg === 'install') {
+    const result = installCompletions();
+    return { data: result, exitCode: 0 };
+  }
+  if (arg === 'zsh') {
+    return { data: generateZshCompletion(), exitCode: 0 };
+  }
+  if (arg === 'bash') {
+    return { data: generateBashCompletion(), exitCode: 0 };
+  }
+  return { data: `Unknown: ${arg}. Use: install, bash, zsh`, exitCode: 1 };
 });
 
 registerCommand('doctor', async (_args, bridge) => {

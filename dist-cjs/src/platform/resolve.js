@@ -8,14 +8,24 @@ const fs_1 = require("fs");
 // @ts-ignore — import.meta.url is valid in ESM; CJS tsconfig rejects it but post-build script fixes it
 const _dirname = __dirname;
 /**
- * Find the package root by walking up from __dirname until we find package.json.
+ * Find the package root by walking up from __dirname until we find a real package.json
+ * (one with a "name" field, not just a CJS marker like {"type":"commonjs"}).
  * Works whether running from source (src/platform/) or compiled (dist/src/platform/).
  */
 function findProjectRoot() {
     let dir = _dirname;
-    for (let i = 0; i < 5; i++) {
-        if ((0, fs_1.existsSync)((0, path_1.join)(dir, 'package.json')))
-            return dir;
+    for (let i = 0; i < 10; i++) {
+        const pkgPath = (0, path_1.join)(dir, 'package.json');
+        if ((0, fs_1.existsSync)(pkgPath)) {
+            try {
+                const pkg = JSON.parse((0, fs_1.readFileSync)(pkgPath, 'utf-8'));
+                if (pkg.name)
+                    return dir;
+            }
+            catch {
+                // Ignore parse errors
+            }
+        }
         dir = (0, path_1.dirname)(dir);
     }
     return (0, path_1.join)(_dirname, '..', '..');

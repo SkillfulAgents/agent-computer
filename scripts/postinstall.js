@@ -20,16 +20,25 @@ if (!existsSync(binaryPath)) {
     : 'cd native/macos && swift build -c release';
   console.log(`\n⚠️  ac: No pre-built binary found for ${key}.`);
   console.log(`   Build from source: ${buildHint}\n`);
-  process.exit(0);
+} else {
+  // Verify the binary runs on this machine
+  try {
+    execFileSync(binaryPath, ['--version'], { timeout: 5000, stdio: 'pipe' });
+  } catch (err) {
+    console.log(`\n⚠️  ac: Bundled binary for ${key} failed to execute.`);
+    const buildHint = os === 'win32'
+      ? 'cd native/windows && dotnet build'
+      : 'cd native/macos && swift build -c release';
+    console.log(`   Rebuild from source: ${buildHint}\n`);
+  }
 }
 
-// Verify the binary runs on this machine
+// Install shell completions
 try {
-  execFileSync(binaryPath, ['--version'], { timeout: 5000, stdio: 'pipe' });
-} catch (err) {
-  console.log(`\n⚠️  ac: Bundled binary for ${key} failed to execute.`);
-  const buildHint = os === 'win32'
-    ? 'cd native/windows && dotnet build'
-    : 'cd native/macos && swift build -c release';
-  console.log(`   Rebuild from source: ${buildHint}\n`);
-}
+  const acJs = join(__dirname, '..', 'dist', 'bin', 'ac.js');
+  if (existsSync(acJs)) {
+    execFileSync(process.execPath, [acJs, 'completion', 'install'],
+      { timeout: 5000, stdio: 'inherit' });
+  }
+} catch {}
+

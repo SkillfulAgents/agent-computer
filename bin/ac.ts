@@ -27,9 +27,9 @@ async function main(): Promise<void> {
     process.env.AC_VERBOSE = '1';
   }
 
-  // Special case: help outputs plain text
-  if (parsed.command === 'help') {
-    const handler = getCommand('help')!;
+  // Special cases: help and completion output plain text without daemon
+  if (parsed.command === 'help' || parsed.command === 'completion') {
+    const handler = getCommand(parsed.command)!;
     const result = await handler(parsed, null as any);
     console.log(result.data);
     process.exit(0);

@@ -39,6 +39,7 @@ exports.getCommandAsync = getCommandAsync;
 exports.getAllCommands = getAllCommands;
 const daemon_js_1 = require("../daemon.js");
 const config_js_1 = require("../config.js");
+const completions_js_1 = require("./completions.js");
 const commands = {};
 let commandModulesLoaded = false;
 function registerCommand(name, handler) {
@@ -112,6 +113,7 @@ Commands:
   config [set <key> <val> | reset]    Configuration
   permissions [grant]                 Permission status
   doctor                              Run diagnostics
+  completion <bash|zsh>               Shell completion script
   version                             Print version
 
 Global options:
@@ -197,6 +199,20 @@ registerCommand('permissions', async (args, bridge) => {
     }
     const result = await bridge.send('permissions');
     return { data: result, exitCode: 0 };
+});
+registerCommand('completion', async (args) => {
+    const arg = args.positional[0] || 'install';
+    if (arg === 'install') {
+        const result = (0, completions_js_1.installCompletions)();
+        return { data: result, exitCode: 0 };
+    }
+    if (arg === 'zsh') {
+        return { data: (0, completions_js_1.generateZshCompletion)(), exitCode: 0 };
+    }
+    if (arg === 'bash') {
+        return { data: (0, completions_js_1.generateBashCompletion)(), exitCode: 0 };
+    }
+    return { data: `Unknown: ${arg}. Use: install, bash, zsh`, exitCode: 1 };
 });
 registerCommand('doctor', async (_args, bridge) => {
     const [permissions, version, daemonStatus] = await Promise.all([

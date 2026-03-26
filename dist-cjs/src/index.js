@@ -1,7 +1,7 @@
 "use strict";
 // @skillful-agents/ac — TypeScript SDK for macOS desktop automation
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CDPInteractions = exports.CDPAXTree = exports.CDPConnection = exports.CDPClient = exports.AC = exports.Bridge = exports.TimeoutError = exports.PermissionDeniedError = exports.ElementNotFoundError = exports.ACError = exports.REF_PREFIXES = exports.refToRole = exports.isValidRef = exports.parseRef = void 0;
+exports.CDPInteractions = exports.CDPAXTree = exports.CDPConnection = exports.CDPClient = exports.formatOutput = exports.AC = exports.Bridge = exports.TimeoutError = exports.PermissionDeniedError = exports.ElementNotFoundError = exports.ACError = exports.REF_PREFIXES = exports.refToRole = exports.isValidRef = exports.parseRef = void 0;
 var refs_js_1 = require("./refs.js");
 Object.defineProperty(exports, "parseRef", { enumerable: true, get: function () { return refs_js_1.parseRef; } });
 Object.defineProperty(exports, "isValidRef", { enumerable: true, get: function () { return refs_js_1.isValidRef; } });
@@ -16,6 +16,8 @@ var bridge_js_1 = require("./bridge.js");
 Object.defineProperty(exports, "Bridge", { enumerable: true, get: function () { return bridge_js_1.Bridge; } });
 var sdk_js_1 = require("./sdk.js");
 Object.defineProperty(exports, "AC", { enumerable: true, get: function () { return sdk_js_1.AC; } });
+var output_js_1 = require("./cli/output.js");
+Object.defineProperty(exports, "formatOutput", { enumerable: true, get: function () { return output_js_1.formatOutput; } });
 // CDP support
 var index_js_1 = require("./cdp/index.js");
 Object.defineProperty(exports, "CDPClient", { enumerable: true, get: function () { return index_js_1.CDPClient; } });
