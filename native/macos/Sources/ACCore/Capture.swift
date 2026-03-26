@@ -44,9 +44,9 @@ class Capture {
             }
             args.append(contentsOf: ["-l", String(windowID)])
         } else {
-            // No ref — capture frontmost window
-            args.append("-w") // Interactive window mode doesn't work from daemon
-            // Fall back to full screen
+            // No ref and not fullScreen — fall back to full screen capture
+            // (-w triggers interactive mode with camera cursor, which doesn't
+            // work from a background daemon)
         }
 
         args.append(filename)
