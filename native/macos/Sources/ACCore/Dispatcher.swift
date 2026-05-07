@@ -521,11 +521,13 @@ class Dispatcher {
             let count = req.paramInt("count") ?? 1
             let modifiers = req.paramStringArray("modifiers") ?? []
 
+            let previousApp = self.activateGrabbedApp()
             let (result, error) = Actions.click(
                 ref: ref, x: x, y: y,
                 right: right, double: double, count: count,
                 modifiers: modifiers, refMap: self.lastRefMap
             )
+            self.restoreApp(previousApp)
 
             if let error = error {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
@@ -560,10 +562,12 @@ class Dispatcher {
             let x = req.paramDouble("x")
             let y = req.paramDouble("y")
 
+            let previousApp = self.activateGrabbedApp()
             let (result, error) = Actions.hover(
                 ref: ref, x: x, y: y,
                 refMap: self.lastRefMap
             )
+            self.restoreApp(previousApp)
 
             if let error = error {
                 return .error(id: req.id, code: error.error?.code ?? -32600,
@@ -1355,7 +1359,9 @@ class Dispatcher {
                               message: "Element not found: \(ref). Take a snapshot first.")
             }
             let jitter = req.paramDouble("jitter") ?? 3.0
+            let previousApp = self.activateGrabbedApp()
             HumanLike.humanClick(element: element, jitterPixels: jitter)
+            self.restoreApp(previousApp)
             return .success(id: req.id, result: ["ok": true, "ref": ref, "human": true])
         }
 
