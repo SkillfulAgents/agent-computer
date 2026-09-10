@@ -19,6 +19,31 @@ npm run build:swift
 npm run build:all
 ```
 
+### Windows daemon
+
+`npm run build:dotnet` is a plain framework-dependent build for local iteration
+and CI tests. Shipping binaries are produced with `dotnet publish -r <rid>`, and
+`ACCore.csproj` turns every RID publish into a **single self-contained
+`ac-core.exe`** — the npm package and release zips ship only that one file, so a
+multi-file publish would leave behind an apphost stub that fails with
+`The application to execute does not exist: ...ac-core.dll` (surfacing in
+clients as `Daemon pipe did not become available within 5000ms`).
+
+```powershell
+# Publish win-x64 + win-arm64 and verify each is one runnable file
+npm run build:dotnet:publish
+
+# Also copy into bin/ac-core-win32-<arch>.exe so resolveBinary() picks it up
+powershell -File scripts/build-windows.ps1 -Stage
+
+# One architecture only
+powershell -File scripts/build-windows.ps1 -Rid win-arm64 -Stage
+```
+
+Requires the .NET 9 SDK (`winget install Microsoft.DotNet.SDK.9`). Expect
+~70 MB per exe: WPF/WinForms (needed for UI Automation) pull in the whole
+WindowsDesktop runtime and it is not trimmable.
+
 ## Running locally
 
 ```bash

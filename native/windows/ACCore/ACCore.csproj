@@ -12,6 +12,24 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <!--
+    Release publishes (dotnet publish -r win-x64|win-arm64) must yield ONE file.
+    The npm package and the release zips ship only ac-core.exe, so a
+    framework-dependent or multi-file publish leaves an apphost stub that dies
+    with "The application to execute does not exist: ...ac-core.dll".
+    Keyed on RuntimeIdentifier so plain `dotnet build` (CI tests, local dev)
+    is unaffected.
+  -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="9.0.5" />
   </ItemGroup>

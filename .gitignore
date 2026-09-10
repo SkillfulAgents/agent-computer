@@ -13,3 +13,7 @@ native/macos/.swiftpm/
 # .NET build artifacts
 native/windows/**/bin/
 native/windows/**/obj/
+
+# Staged Windows binaries (built by scripts/build-windows.ps1 -Stage / CI release)
+bin/ac-core-*
+native/windows/publish-*/

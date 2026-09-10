@@ -48,8 +48,24 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      - name: Build release binary (self-contained)
-        run: cd native/windows && dotnet publish ACCore/ACCore.csproj -c Release -r win-x64 --self-contained -o publish-x64
+      # Single-file + self-contained comes from ACCore.csproj (keyed on -r).
+      # Only ac-core.exe is uploaded below, so the publish dir MUST contain
+      # exactly that one file — a stray ac-core.dll means a broken package.
+      - name: Build release binary (single-file, self-contained)
+        run: cd native/windows && dotnet publish ACCore/ACCore.csproj -c Release -r win-x64 -o publish-x64
+
+      - name: Verify single-file publish
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem native/windows/publish-x64 -File
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'ac-core.exe') {
+            throw "Expected only ac-core.exe in publish-x64, got: $($files.Name -join ', ')"
+          }
+          $tmp = Join-Path $env:RUNNER_TEMP 'ac-core-standalone'
+          New-Item -ItemType Directory -Force $tmp | Out-Null
+          Copy-Item native/windows/publish-x64/ac-core.exe $tmp
+          & "$tmp/ac-core.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw 'Standalone ac-core.exe failed to run' }
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
@@ -66,8 +82,19 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      - name: Build release binary (self-contained)
-        run: cd native/windows && dotnet publish ACCore/ACCore.csproj -c Release -r win-arm64 --self-contained -o publish-arm64
+      # Single-file + self-contained comes from ACCore.csproj (keyed on -r).
+      # Only ac-core.exe is uploaded below, so the publish dir MUST contain
+      # exactly that one file — a stray ac-core.dll means a broken package.
+      - name: Build release binary (single-file, self-contained)
+        run: cd native/windows && dotnet publish ACCore/ACCore.csproj -c Release -r win-arm64 -o publish-arm64
+
+      - name: Verify single-file publish
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem native/windows/publish-arm64 -File
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'ac-core.exe') {
+            throw "Expected only ac-core.exe in publish-arm64, got: $($files.Name -join ', ')"
+          }
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
