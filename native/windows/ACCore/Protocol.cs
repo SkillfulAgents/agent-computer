@@ -132,6 +132,7 @@ public static class ErrorCodes
     public const int InvalidRequest = -32600;
     public const int MethodNotFound = -32601;
     public const int InvalidParams = -32602;
+    public const int InternalError = -32603;
 
     public static int ExitCodeFromErrorCode(int code) => code switch
     {

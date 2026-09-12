@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
-using System.Windows.Automation;
+using ACCore.Uia;
 
 namespace ACCore;
 

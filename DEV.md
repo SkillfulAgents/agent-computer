@@ -41,8 +41,15 @@ powershell -File scripts/build-windows.ps1 -Rid win-arm64 -Stage
 ```
 
 Requires the .NET 9 SDK (`winget install Microsoft.DotNet.SDK.9`). Expect
-~70 MB per exe: WPF/WinForms (needed for UI Automation) pull in the whole
-WindowsDesktop runtime and it is not trimmable.
+~12 MB per exe; the build script fails above 20 MB.
+
+Keep the Windows daemon free of `UseWPF` / `UseWindowsForms`. UI Automation
+goes through the UIAutomationCore COM API behind a small managed shim
+(`ACCore/Uia/Uia.cs`, same shape as `System.Windows.Automation`), and
+screens / clipboard / the halo overlay are plain Win32 (`Screens.cs`,
+`Clipboard.cs`, `Overlay.cs`). Referencing the WindowsDesktop framework pulls
+~40 MB of WPF into a self-contained publish and the trimmer cannot remove it —
+that is how 0.0.12 shipped 70 MB binaries.
 
 ## Running locally
 

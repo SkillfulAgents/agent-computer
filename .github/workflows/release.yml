@@ -61,6 +61,9 @@ jobs:
           if ($files.Count -ne 1 -or $files[0].Name -ne 'ac-core.exe') {
             throw "Expected only ac-core.exe in publish-x64, got: $($files.Name -join ', ')"
           }
+          $mb = [math]::Round($files[0].Length / 1MB, 1)
+          Write-Host "ac-core.exe (x64): $mb MB"
+          if ($files[0].Length -gt 20MB) { throw "ac-core.exe (x64) is $mb MB, over the 20 MB budget" }
           $tmp = Join-Path $env:RUNNER_TEMP 'ac-core-standalone'
           New-Item -ItemType Directory -Force $tmp | Out-Null
           Copy-Item native/windows/publish-x64/ac-core.exe $tmp
@@ -95,6 +98,9 @@ jobs:
           if ($files.Count -ne 1 -or $files[0].Name -ne 'ac-core.exe') {
             throw "Expected only ac-core.exe in publish-arm64, got: $($files.Name -join ', ')"
           }
+          $mb = [math]::Round($files[0].Length / 1MB, 1)
+          Write-Host "ac-core.exe (arm64): $mb MB"
+          if ($files[0].Length -gt 20MB) { throw "ac-core.exe (arm64) is $mb MB, over the 20 MB budget" }
 
       - name: Upload binary
         uses: actions/upload-artifact@v4

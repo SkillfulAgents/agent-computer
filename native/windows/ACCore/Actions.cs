@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using System.Windows.Automation;
+using ACCore.Uia;
 
 namespace ACCore;
 

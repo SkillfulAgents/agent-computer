@@ -8,30 +8,64 @@
     <RootNamespace>ACCore</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
-    <UseWPF>true</UseWPF>
+    <!--
+      Deliberately NOT UseWPF / UseWindowsForms. UI Automation goes through the
+      UIAutomationCore COM API (Uia/Uia.cs), screens/clipboard/overlay through
+      Win32. Referencing the WindowsDesktop framework pulls ~40 MB of WPF into
+      a self-contained publish and the trimmer cannot remove it.
+    -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <!-- Results are anonymous objects serialized by reflection; keep the reflection serializer. -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <!--
-    Release publishes (dotnet publish -r win-x64|win-arm64) must yield ONE file.
-    The npm package and the release zips ship only ac-core.exe, so a
+    Release publishes (dotnet publish -r win-x64|win-arm64) must yield ONE small
+    file. The npm package and the release zips ship only ac-core.exe, so a
     framework-dependent or multi-file publish leaves an apphost stub that dies
     with "The application to execute does not exist: ...ac-core.dll".
     Keyed on RuntimeIdentifier so plain `dotnet build` (CI tests, local dev)
-    is unaffected.
+    is unaffected. Size budget is enforced by scripts/build-windows.ps1.
   -->
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!--
+      Trim the framework. `partial` trims only assemblies that opt in (all of
+      the BCL) and leaves ac-core.dll + the COM interop assembly intact, which
+      is what keeps reflection-based JSON of anonymous result objects working.
+    -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <DebuggerSupport>false</DebuggerSupport>
+    <EventSourceSupport>false</EventSourceSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="9.0.5" />
+    <!-- tlbimp of UIAutomationCore.dll: IUIAutomation, IUIAutomationElement, patterns. -->
+    <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
   </ItemGroup>
+
+  <!--
+    Self-contained publishes bundle the runtime's debugger/diagnostics and
+    alternate-GC/QUIC natives (~10 MB). A headless automation daemon never
+    uses them, so drop them from the single file.
+  -->
+  <Target Name="StripUnusedRuntimeNatives" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' != ''">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+        Condition="$([System.String]::new('%(Filename)').StartsWith('mscordaccore')) or '%(Filename)' == 'mscordbi' or $([System.String]::new('%(Filename)').StartsWith('Microsoft.DiaSymReader.Native')) or '%(Filename)' == 'clrgc' or '%(Filename)' == 'clrgcexp' or '%(Filename)' == 'msquic'" />
+    </ItemGroup>
+  </Target>
 
 </Project>

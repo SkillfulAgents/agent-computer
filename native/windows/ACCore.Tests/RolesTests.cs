@@ -1,4 +1,4 @@
-using System.Windows.Automation;
+using ACCore.Uia;
 using ACCore;
 
 namespace ACCore.Tests;

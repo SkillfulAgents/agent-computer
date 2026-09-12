@@ -57,7 +57,7 @@ public class CaptureManager
         else
         {
             // Full screen capture
-            var screen = System.Windows.Forms.Screen.PrimaryScreen!;
+            var screen = ScreenInfo.PrimaryScreen;
             bitmap = new Bitmap(screen.Bounds.Width, screen.Bounds.Height);
             using var g = Graphics.FromImage(bitmap);
             g.CopyFromScreen(screen.Bounds.Location, Point.Empty, screen.Bounds.Size);
@@ -100,7 +100,7 @@ public class CaptureManager
     {
         var displays = new List<object>();
         int id = 0;
-        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+        foreach (var screen in ScreenInfo.AllScreens)
         {
             displays.Add(new
             {
@@ -122,7 +122,7 @@ public class CaptureManager
         return Path.Combine(_screenshotDir, $"ac-{timestamp}.{format}");
     }
 
-    private static double GetScaleFactor(System.Windows.Forms.Screen screen)
+    private static double GetScaleFactor(ScreenInfo screen)
     {
         // Approximate DPI scale factor
         try

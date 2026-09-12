@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -48,12 +49,6 @@ public class HaloOverlay : IDisposable
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
 
-    [DllImport("user32.dll")]
-    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
-    [DllImport("user32.dll")]
-    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left, Top, Right, Bottom; }
 
@@ -72,7 +67,6 @@ public class HaloOverlay : IDisposable
         public byte AlphaFormat;
     }
 
-    private const int GWL_EXSTYLE = -20;
     private const int WS_EX_LAYERED = 0x80000;
     private const int WS_EX_TRANSPARENT = 0x20;
     private const int WS_EX_TOOLWINDOW = 0x80;
@@ -88,7 +82,7 @@ public class HaloOverlay : IDisposable
     private const float BorderWidth = 3.5f;
 
     private IntPtr _targetHandle;
-    private System.Windows.Forms.Form? _overlayForm;
+    private OverlayWindow? _overlayWindow;
     private System.Threading.Timer? _animTimer;
     private RECT _lastTargetRect;
     private bool _disposed;
@@ -101,23 +95,26 @@ public class HaloOverlay : IDisposable
 
         var thread = new Thread(() =>
         {
-            _overlayForm = new GlowForm();
+            OverlayWindow window;
+            try { window = new OverlayWindow(); }
+            catch { return; }
+            _overlayWindow = window;
             UpdatePositionAndRender();
 
             _animTimer = new System.Threading.Timer(_ =>
             {
                 try
                 {
-                    if (_overlayForm == null || _overlayForm.IsDisposed) return;
+                    if (_overlayWindow == null || _overlayWindow.IsDisposed) return;
                     if (!IsWindow(_targetHandle)) { Remove(); return; }
 
                     _animPhase += 0.06f;
-                    _overlayForm.Invoke(new Action(UpdatePositionAndRender));
+                    _overlayWindow.Invoke(UpdatePositionAndRender);
                 }
                 catch { }
             }, null, 0, 33);
 
-            System.Windows.Forms.Application.Run(_overlayForm);
+            window.RunMessageLoop();
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.IsBackground = true;
@@ -130,20 +127,18 @@ public class HaloOverlay : IDisposable
         _animTimer = null;
         try
         {
-            if (_overlayForm != null && !_overlayForm.IsDisposed)
-                _overlayForm.Invoke(new Action(() =>
-                {
-                    _overlayForm.Close();
-                    System.Windows.Forms.Application.ExitThread();
-                }));
+            var window = _overlayWindow;
+            if (window != null && !window.IsDisposed)
+                window.Invoke(window.Close);
         }
         catch { }
-        _overlayForm = null;
+        _overlayWindow = null;
     }
 
     private void UpdatePositionAndRender()
     {
-        if (_overlayForm == null || _overlayForm.IsDisposed || !IsWindow(_targetHandle)) return;
+        var window = _overlayWindow;
+        if (window == null || window.IsDisposed || !IsWindow(_targetHandle)) return;
 
         GetWindowRect(_targetHandle, out RECT rawRect);
 
@@ -226,19 +221,20 @@ public class HaloOverlay : IDisposable
         // GetWindow(target, GW_HWNDPREV) returns the window above target;
         // inserting overlay after that window places it between that window and target.
         IntPtr insertAfter = GetWindow(_targetHandle, GW_HWNDPREV);
-        if (insertAfter == IntPtr.Zero || insertAfter == _overlayForm.Handle)
+        if (insertAfter == IntPtr.Zero || insertAfter == window.Handle)
         {
             // Target is the topmost window — just use HWND_TOP (not TOPMOST)
             insertAfter = IntPtr.Zero; // HWND_TOP
         }
 
-        SetWindowPos(_overlayForm.Handle, insertAfter, ox, oy, ow, oh,
+        SetWindowPos(window.Handle, insertAfter, ox, oy, ow, oh,
             SWP_NOACTIVATE | SWP_NOSENDCHANGING);
     }
 
     private void ApplyBitmap(Bitmap bmp, int x, int y, int w, int h)
     {
-        if (_overlayForm == null) return;
+        var window = _overlayWindow;
+        if (window == null) return;
 
         IntPtr screenDC = IntPtr.Zero;
         IntPtr memDC = IntPtr.Zero;
@@ -263,7 +259,7 @@ public class HaloOverlay : IDisposable
                 AlphaFormat = AC_SRC_ALPHA,
             };
 
-            UpdateLayeredWindow(_overlayForm.Handle, screenDC, ref ptDst, ref size, memDC, ref ptSrc, 0, ref blend, ULW_ALPHA);
+            UpdateLayeredWindow(window.Handle, screenDC, ref ptDst, ref size, memDC, ref ptSrc, 0, ref blend, ULW_ALPHA);
         }
         finally
         {
@@ -300,28 +296,182 @@ public class HaloOverlay : IDisposable
         Remove();
     }
 
-    private class GlowForm : System.Windows.Forms.Form
+    /// <summary>
+    /// A bare Win32 layered, click-through, non-activating tool window with its
+    /// own message loop. Replaces the WinForms Form so the daemon does not have
+    /// to ship the WinForms runtime. Content is painted via UpdateLayeredWindow.
+    /// </summary>
+    private sealed class OverlayWindow
     {
-        public GlowForm()
+        private const int WS_POPUP = unchecked((int)0x80000000);
+        private const int SW_SHOWNOACTIVATE = 4;
+        private const uint WM_DESTROY = 0x0002;
+        private const uint WM_APP_INVOKE = 0x8000 + 1; // WM_APP + 1
+        private const string ClassName = "ACCoreHaloOverlay";
+
+        private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct WNDCLASSEX
         {
-            FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
-            ShowInTaskbar = false;
-            StartPosition = System.Windows.Forms.FormStartPosition.Manual;
-            Size = new Size(1, 1);
-            Location = new System.Drawing.Point(-100, -100);
+            public int cbSize;
+            public uint style;
+            public WndProcDelegate lpfnWndProc;
+            public int cbClsExtra;
+            public int cbWndExtra;
+            public IntPtr hInstance;
+            public IntPtr hIcon;
+            public IntPtr hCursor;
+            public IntPtr hbrBackground;
+            public string? lpszMenuName;
+            public string lpszClassName;
+            public IntPtr hIconSm;
         }
 
-        protected override CreateParams CreateParams
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSG
         {
-            get
+            public IntPtr hwnd;
+            public uint message;
+            public IntPtr wParam;
+            public IntPtr lParam;
+            public uint time;
+            public POINT pt;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CreateWindowEx(int dwExStyle, string lpClassName, string lpWindowName,
+            int dwStyle, int x, int y, int nWidth, int nHeight, IntPtr hWndParent, IntPtr hMenu,
+            IntPtr hInstance, IntPtr lpParam);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool DestroyWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+        [DllImport("user32.dll")]
+        private static extern bool TranslateMessage(ref MSG lpMsg);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr DispatchMessage(ref MSG lpMsg);
+
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern void PostQuitMessage(int nExitCode);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+        // The delegate must outlive the window class registration.
+        private static readonly WndProcDelegate s_wndProc = StaticWndProc;
+        private static ushort s_classAtom;
+        private static readonly object s_classLock = new();
+        private static readonly Dictionary<IntPtr, OverlayWindow> s_windows = new();
+
+        private readonly ConcurrentQueue<Action> _pending = new();
+        private readonly int _threadId = Environment.CurrentManagedThreadId;
+
+        public IntPtr Handle { get; }
+        public bool IsDisposed { get; private set; }
+
+        public OverlayWindow()
+        {
+            EnsureClassRegistered();
+            Handle = CreateWindowEx(
+                WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+                ClassName, string.Empty, WS_POPUP, -100, -100, 1, 1,
+                IntPtr.Zero, IntPtr.Zero, GetModuleHandle(null), IntPtr.Zero);
+            if (Handle == IntPtr.Zero)
+                throw new InvalidOperationException("CreateWindowEx failed: " + Marshal.GetLastWin32Error());
+            lock (s_windows) s_windows[Handle] = this;
+            ShowWindow(Handle, SW_SHOWNOACTIVATE);
+        }
+
+        /// <summary>Run <paramref name="action"/> on the window's thread and wait (bounded) for it.</summary>
+        public void Invoke(Action action)
+        {
+            if (IsDisposed) return;
+            if (Environment.CurrentManagedThreadId == _threadId) { action(); return; }
+            using var done = new ManualResetEventSlim(false);
+            _pending.Enqueue(() => { try { action(); } finally { done.Set(); } });
+            if (!PostMessage(Handle, WM_APP_INVOKE, IntPtr.Zero, IntPtr.Zero)) return;
+            done.Wait(2000);
+        }
+
+        public void Close()
+        {
+            if (IsDisposed) return;
+            DestroyWindow(Handle);
+        }
+
+        public void RunMessageLoop()
+        {
+            while (GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
             {
-                var cp = base.CreateParams;
-                cp.ExStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
-                return cp;
+                TranslateMessage(ref msg);
+                DispatchMessage(ref msg);
             }
         }
 
-        protected override void OnPaintBackground(System.Windows.Forms.PaintEventArgs e) { }
-        protected override void OnPaint(System.Windows.Forms.PaintEventArgs e) { }
+        private static void EnsureClassRegistered()
+        {
+            lock (s_classLock)
+            {
+                if (s_classAtom != 0) return;
+                var wc = new WNDCLASSEX
+                {
+                    cbSize = Marshal.SizeOf<WNDCLASSEX>(),
+                    lpfnWndProc = s_wndProc,
+                    hInstance = GetModuleHandle(null),
+                    lpszClassName = ClassName,
+                };
+                s_classAtom = RegisterClassEx(ref wc);
+                if (s_classAtom == 0)
+                    throw new InvalidOperationException("RegisterClassEx failed: " + Marshal.GetLastWin32Error());
+            }
+        }
+
+        private static IntPtr StaticWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+        {
+            OverlayWindow? self;
+            lock (s_windows) s_windows.TryGetValue(hWnd, out self);
+
+            switch (msg)
+            {
+                case WM_APP_INVOKE:
+                    while (self != null && self._pending.TryDequeue(out var action))
+                    {
+                        try { action(); } catch { }
+                    }
+                    return IntPtr.Zero;
+
+                case WM_DESTROY:
+                    if (self != null)
+                    {
+                        self.IsDisposed = true;
+                        lock (s_windows) s_windows.Remove(hWnd);
+                        // Release anything still parked in Invoke().
+                        while (self._pending.TryDequeue(out var action))
+                        {
+                            try { action(); } catch { }
+                        }
+                    }
+                    PostQuitMessage(0);
+                    return IntPtr.Zero;
+            }
+            return DefWindowProc(hWnd, msg, wParam, lParam);
+        }
     }
 }

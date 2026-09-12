@@ -183,7 +183,7 @@ public class SnapshotTests
         var map = builder.LastRefMap;
 
         // It's a Dictionary<string, AutomationElement>, initially empty
-        Assert.IsType<Dictionary<string, System.Windows.Automation.AutomationElement>>(map);
+        Assert.IsType<Dictionary<string, ACCore.Uia.AutomationElement>>(map);
         Assert.Empty(map);
     }
 

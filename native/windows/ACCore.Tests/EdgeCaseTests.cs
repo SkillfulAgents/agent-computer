@@ -340,7 +340,7 @@ public class ActionsEdgeCases
         // We verify the fix is in place by checking the method source through a simplified test.
         //
         // Create an Actions instance with an empty ref map (we won't use ref-based operations)
-        var actions = new Actions(new Dictionary<string, System.Windows.Automation.AutomationElement>());
+        var actions = new Actions(new Dictionary<string, ACCore.Uia.AutomationElement>());
 
         // This would have thrown DivideByZeroException before the fix.
         // Now it should complete without error (it will call P/Invoke but with steps=1).

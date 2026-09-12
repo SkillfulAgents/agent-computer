@@ -12,7 +12,8 @@
 param(
   [ValidateSet('win-x64', 'win-arm64')]
   [string[]]$Rid = @('win-x64', 'win-arm64'),
-  [switch]$Stage
+  [switch]$Stage,
+  [int]$MaxSizeMB = 20
 )
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -32,6 +33,15 @@ foreach ($r in $Rid) {
   if ($files.Count -ne 1 -or $files[0].Name -ne 'ac-core.exe') {
     throw "Expected a single ac-core.exe in $out, got: $($files.Name -join ', ')"
   }
+
+  # Size budget: the exe ships inside every npm install and every desktop
+  # installer that bundles this package. A trimmed, WPF-free build is ~12 MB;
+  # anything near the WindowsDesktop-framework size (~70 MB) is a regression.
+  $sizeMB = [math]::Round($files[0].Length / 1MB, 1)
+  if ($files[0].Length -gt $MaxSizeMB * 1MB) {
+    throw "ac-core.exe ($r) is $sizeMB MB, over the $MaxSizeMB MB budget. Did WPF/WinForms or trimming regress?"
+  }
+  Write-Host "    size: $sizeMB MB"
 
   # Run it from an empty directory so a missing ac-core.dll / runtime shows up
   # here instead of as a "Daemon pipe did not become available" at runtime.

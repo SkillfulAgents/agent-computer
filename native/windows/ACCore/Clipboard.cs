@@ -2,73 +2,101 @@ using System.Runtime.InteropServices;
 
 namespace ACCore;
 
+/// <summary>
+/// Unicode-text clipboard access over the raw Win32 clipboard API. The
+/// clipboard can be briefly owned by another process, so open is retried.
+/// </summary>
 public class Clipboard
 {
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool OpenClipboard(IntPtr hWndNewOwner);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool CloseClipboard();
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool EmptyClipboard();
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr GetClipboardData(uint uFormat);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetClipboardData(uint uFormat, IntPtr hMem);
 
-    [DllImport("kernel32.dll")]
+    [DllImport("user32.dll")]
+    private static extern bool IsClipboardFormatAvailable(uint format);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GlobalLock(IntPtr hMem);
 
-    [DllImport("kernel32.dll")]
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GlobalUnlock(IntPtr hMem);
 
-    [DllImport("kernel32.dll")]
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GlobalAlloc(uint uFlags, UIntPtr dwBytes);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GlobalFree(IntPtr hMem);
 
     private const uint CF_UNICODETEXT = 13;
     private const uint GMEM_MOVEABLE = 0x0002;
+    private const int OpenAttempts = 10;
 
     public string? Read()
     {
-        // Use the WinForms clipboard API for simplicity and thread safety
-        string? result = null;
-        RunOnSTAThread(() =>
+        if (!IsClipboardFormatAvailable(CF_UNICODETEXT)) return null;
+        OpenWithRetry();
+        try
         {
-            if (System.Windows.Forms.Clipboard.ContainsText())
-                result = System.Windows.Forms.Clipboard.GetText();
-        });
-        return result;
+            var hData = GetClipboardData(CF_UNICODETEXT);
+            if (hData == IntPtr.Zero) return null;
+            var ptr = GlobalLock(hData);
+            if (ptr == IntPtr.Zero) return null;
+            try { return Marshal.PtrToStringUni(ptr); }
+            finally { GlobalUnlock(hData); }
+        }
+        finally { CloseClipboard(); }
     }
 
     public void Set(string text)
     {
-        RunOnSTAThread(() =>
+        var bytes = (text.Length + 1) * 2;
+        var hMem = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)bytes);
+        if (hMem == IntPtr.Zero) throw new ACException(ErrorCodes.InternalError, "GlobalAlloc failed");
+        var ptr = GlobalLock(hMem);
+        if (ptr == IntPtr.Zero)
         {
-            System.Windows.Forms.Clipboard.SetText(text);
-        });
+            GlobalFree(hMem);
+            throw new ACException(ErrorCodes.InternalError, "GlobalLock failed");
+        }
+        try
+        {
+            Marshal.Copy(text.ToCharArray(), 0, ptr, text.Length);
+            Marshal.WriteInt16(ptr, text.Length * 2, 0);
+        }
+        finally { GlobalUnlock(hMem); }
+
+        OpenWithRetry();
+        try
+        {
+            EmptyClipboard();
+            if (SetClipboardData(CF_UNICODETEXT, hMem) == IntPtr.Zero)
+            {
+                GlobalFree(hMem); // ownership was not transferred
+                throw new ACException(ErrorCodes.InternalError, "SetClipboardData failed");
+            }
+            // On success the system owns hMem.
+        }
+        finally { CloseClipboard(); }
     }
 
-    private static void RunOnSTAThread(Action action)
+    private static void OpenWithRetry()
     {
-        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+        for (int i = 0; i < OpenAttempts; i++)
         {
-            action();
-            return;
+            if (OpenClipboard(IntPtr.Zero)) return;
+            Thread.Sleep(20);
         }
-
-        Exception? caught = null;
-        var thread = new Thread(() =>
-        {
-            try { action(); }
-            catch (Exception ex) { caught = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        if (caught != null) throw caught;
+        throw new ACException(ErrorCodes.InternalError, "Clipboard is busy");
     }
 }

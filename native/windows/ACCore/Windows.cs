@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Windows.Automation;
+using ACCore.Uia;
 
 namespace ACCore;
 
@@ -148,7 +148,7 @@ public class WindowManager
             bool fullscreen = false;
             try
             {
-                var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
+                var screen = ScreenInfo.FromHandle(hWnd);
                 fullscreen = rect.Left <= screen.Bounds.Left && rect.Top <= screen.Bounds.Top
                     && rect.Right >= screen.Bounds.Right && rect.Bottom >= screen.Bounds.Bottom;
             }
@@ -279,7 +279,7 @@ public class WindowManager
         var handle = ResolveWindowHandle(windowRef)
             ?? throw new ACException(ErrorCodes.WindowNotFound, $"Window not found: {windowRef}");
 
-        var screen = System.Windows.Forms.Screen.FromHandle(handle);
+        var screen = ScreenInfo.FromHandle(handle);
         var wa = screen.WorkingArea;
 
         switch (preset.ToLowerInvariant())
@@ -321,7 +321,7 @@ public class WindowManager
             ShowWindow(handle, SW_RESTORE);
         }
 
-        var screen = System.Windows.Forms.Screen.FromHandle(handle);
+        var screen = ScreenInfo.FromHandle(handle);
         var bounds = screen.Bounds;
         SetWindowPos(handle, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height,
             SWP_NOZORDER | SWP_SHOWWINDOW);
