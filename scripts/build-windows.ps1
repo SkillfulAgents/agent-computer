@@ -45,13 +45,18 @@ foreach ($r in $Rid) {
 
   # Run it from an empty directory so a missing ac-core.dll / runtime shows up
   # here instead of as a "Daemon pipe did not become available" at runtime.
-  if ($r -eq $hostRid) {
+  # An arm64 host can also run the x64 build (Windows 11 x64 emulation).
+  if ($r -eq $hostRid -or $hostRid -eq 'win-arm64') {
     $tmp = Join-Path ([IO.Path]::GetTempPath()) "ac-core-verify-$r-$PID"
     New-Item -ItemType Directory -Force $tmp | Out-Null
     Copy-Item (Join-Path $out 'ac-core.exe') $tmp
     $ver = & (Join-Path $tmp 'ac-core.exe') --version
-    Remove-Item -Recurse -Force $tmp
-    if ($LASTEXITCODE -ne 0) { throw "Standalone ac-core.exe ($r) failed to run" }
+    $exit = $LASTEXITCODE
+    # An emulated x64 process can hold its image open for a moment after exit.
+    for ($i = 0; $i -lt 10; $i++) {
+      try { Remove-Item -Recurse -Force $tmp -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 300 }
+    }
+    if ($exit -ne 0) { throw "Standalone ac-core.exe ($r) failed to run" }
     Write-Host "    standalone --version: $ver"
   } else {
     Write-Host "    (cannot execute $r on a $hostRid host; skipped run check)"

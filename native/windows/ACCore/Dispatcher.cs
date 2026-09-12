@@ -66,6 +66,7 @@ public class Dispatcher
         _methods["shutdown"] = _ => { Environment.Exit(0); return new { ok = true }; };
         _methods["status"] = HandleStatus;
         _methods["permissions"] = _ => new { accessibility = true, screen_recording = true }; // No special perms needed on Windows
+        _methods["permissions_grant"] = _ => new { ok = true }; // nothing to grant on Windows
 
         // KV store
         _methods["kv_set"] = HandleKvSet;
@@ -134,10 +135,17 @@ public class Dispatcher
         _methods["box"] = HandleBox;
 
         // Menu
-        _methods["menu"] = HandleMenu;
+        _methods["menu"] = HandleMenu;          // legacy Windows-only shape
+        _methods["menu_list"] = HandleMenuList;   // what the CLI/SDK send (matches macOS)
+        _methods["menu_click"] = HandleMenuClick;
+        _methods["menubar"] = _ => new { ok = true, extras = Array.Empty<object>() }; // no menu-bar extras on Windows
 
-        // Clipboard
+        // Clipboard. `clipboard` is the legacy Windows-only entry point; the CLI,
+        // SDK and macOS daemon speak clipboard_read / clipboard_set / clipboard_copy.
         _methods["clipboard"] = HandleClipboard;
+        _methods["clipboard_read"] = _ => new { ok = true, text = _clipboard.Read() };
+        _methods["clipboard_set"] = HandleClipboardSet;
+        _methods["clipboard_copy"] = HandleClipboardCopy;
 
         // Screenshot & displays
         _methods["screenshot"] = HandleScreenshot;
@@ -146,6 +154,9 @@ public class Dispatcher
         // Dialog
         _methods["dialog"] = HandleDialog;
         _methods["alert"] = HandleAlert;
+        _methods["dialog_accept"] = HandleDialogAccept;
+        _methods["dialog_cancel"] = HandleDialogCancel;
+        _methods["dialog_file"] = HandleDialogFile;
 
         // Wait
         _methods["wait"] = HandleWait;
@@ -745,7 +756,7 @@ public class Dispatcher
             throw new ACException(ErrorCodes.WindowNotFound, "No window grabbed for menu access");
 
         if (list)
-            return _menuManager.ListMenus(appElement, string.IsNullOrEmpty(menuName) ? null : menuName);
+            return _menuManager.ListMenus(appElement, string.IsNullOrEmpty(menuName) ? null : menuName, req.GetBool("all", false));
 
         if (string.IsNullOrEmpty(path))
             throw new ACException(ErrorCodes.InvalidParams, "Missing menu path");
@@ -781,6 +792,103 @@ public class Dispatcher
 
         // Read
         return new { text = _clipboard.Read() };
+    }
+
+    private object HandleClipboardSet(RPCRequest req)
+    {
+        var text = req.GetString("text");
+        if (text == null)
+            throw new ACException(ErrorCodes.InvalidParams, "Missing text parameter");
+        _clipboard.Set(text);
+        return new { ok = true };
+    }
+
+    private object HandleClipboardCopy(RPCRequest req)
+    {
+        GetActions().PressKey("ctrl+c");
+        Thread.Sleep(100);
+        return new { ok = true, text = _clipboard.Read() };
+    }
+
+    // ---- Menus (cross-platform names) ----
+
+    /// <summary>
+    /// The window whose UI tree menu/dialog commands operate on: the grabbed
+    /// window, or the first window of `app` when one is named.
+    /// </summary>
+    private AutomationElement ResolveAppElement(string? appName, string what)
+    {
+        AutomationElement? element = null;
+        if (!string.IsNullOrEmpty(appName))
+        {
+            var windows = _windowManager.ListWindows(appName);
+            if (windows.Count > 0)
+                element = _windowManager.GetWindowAutomationElement(windows[0].Ref);
+            if (element == null)
+                throw new ACException(ErrorCodes.AppNotFound, $"No window found for app: {appName}");
+        }
+        else if (_grabbedWindow != null)
+        {
+            element = _windowManager.GetWindowAutomationElement(_grabbedWindow);
+        }
+
+        return element
+            ?? throw new ACException(ErrorCodes.WindowNotFound, $"No window grabbed for {what}. Use grab first or pass --app.");
+    }
+
+    private object HandleMenuList(RPCRequest req)
+    {
+        var menuName = req.GetString("menu");
+        var all = req.GetBool("all", false);
+        var appElement = ResolveAppElement(req.GetString("app"), "menu access");
+        return _menuManager.ListMenus(appElement, string.IsNullOrEmpty(menuName) ? null : menuName, all);
+    }
+
+    private object HandleMenuClick(RPCRequest req)
+    {
+        var path = req.GetString("path");
+        if (string.IsNullOrEmpty(path))
+            throw new ACException(ErrorCodes.InvalidParams, "Missing menu path");
+        var appElement = ResolveAppElement(req.GetString("app"), "menu access");
+        _menuManager.NavigateMenu(appElement, path);
+        return new { ok = true, path };
+    }
+
+    // ---- Dialogs (cross-platform names) ----
+
+    private object HandleDialogAccept(RPCRequest req)
+    {
+        var windowElement = ResolveAppElement(req.GetString("app"), "dialog access");
+        _dialogManager.AcceptDialog(windowElement);
+        return new { ok = true, action = "accept" };
+    }
+
+    private object HandleDialogCancel(RPCRequest req)
+    {
+        var windowElement = ResolveAppElement(req.GetString("app"), "dialog access");
+        _dialogManager.DismissDialog(windowElement);
+        return new { ok = true, action = "cancel" };
+    }
+
+    private object HandleDialogFile(RPCRequest req)
+    {
+        var path = req.GetString("path");
+        if (string.IsNullOrEmpty(path))
+            throw new ACException(ErrorCodes.InvalidParams, "Missing path parameter");
+        ResolveAppElement(req.GetString("app"), "dialog access"); // validates there is a target window
+        FillFileDialog(path);
+        return new { ok = true, path };
+    }
+
+    /// <summary>Type a path into the focused common file dialog and confirm it.</summary>
+    private void FillFileDialog(string filePath)
+    {
+        var actions = GetActions();
+        actions.PressKey("ctrl+l"); // focus the file-name / address field
+        Thread.Sleep(100);
+        actions.TypeText(filePath);
+        Thread.Sleep(100);
+        actions.PressKey("enter");
     }
 
     // ---- Screenshot ----
@@ -819,15 +927,7 @@ public class Dispatcher
 
         if (!string.IsNullOrEmpty(filePath))
         {
-            // File dialog: fill path
-            var dialog = windowElement;
-            var actions = GetActions();
-            // Find text field in dialog, fill it
-            actions.PressKey("ctrl+l"); // Go to address bar / path input
-            Thread.Sleep(100);
-            actions.TypeText(filePath);
-            Thread.Sleep(100);
-            actions.PressKey("enter");
+            FillFileDialog(filePath);
             return new { ok = true };
         }
 
