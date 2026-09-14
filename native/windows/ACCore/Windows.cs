@@ -233,10 +233,32 @@ public class WindowManager
             w.ProcessName.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
         if (byApp.Count > 0) return byApp;
 
+        // Title conventions: UWP frames are titled with the app name; classic
+        // apps put it last ("Inbox - Google Chrome", "notes.txt - Notepad").
         return all.Where(w =>
             w.Title.Equals(name, StringComparison.OrdinalIgnoreCase) ||
             w.Title.StartsWith(name + " ", StringComparison.OrdinalIgnoreCase) ||
-            w.Title.StartsWith(name + " -", StringComparison.OrdinalIgnoreCase)).ToList();
+            w.Title.StartsWith(name + " -", StringComparison.OrdinalIgnoreCase) ||
+            w.Title.EndsWith(" - " + name, StringComparison.OrdinalIgnoreCase) ||
+            w.Title.EndsWith(" \u2013 " + name, StringComparison.OrdinalIgnoreCase) ||
+            w.Title.EndsWith(" \u2014 " + name, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    /// <summary>Handles of every listed window, for before/after diffs around a launch.</summary>
+    public HashSet<IntPtr> WindowHandles()
+    {
+        var set = new HashSet<IntPtr>();
+        foreach (var w in ListWindows())
+            if (_refToHandle.TryGetValue(w.Ref, out var h)) set.Add(h);
+        return set;
+    }
+
+    /// <summary>Windows that are not in <paramref name="before"/>.</summary>
+    public List<WindowInfo> WindowsNotIn(HashSet<IntPtr> before)
+    {
+        return ListWindows()
+            .Where(w => _refToHandle.TryGetValue(w.Ref, out var h) && !before.Contains(h))
+            .ToList();
     }
 
     private static bool IsCloaked(IntPtr hWnd)

@@ -131,6 +131,11 @@ public class AppManager
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // 0. Everything the Start menu can launch, by its display name. Each of
+        //    these is guaranteed to work with `launch`.
+        foreach (var app in StartApps.All())
+            names.Add(app.Name);
+
         // 1. Start Menu shortcuts (.lnk files)
         string[] startMenuPaths = [
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs"),
@@ -293,43 +298,64 @@ public class AppManager
         { "Windows Terminal", "wt" },
     };
 
-    public Process Launch(string name, bool wait = false, bool background = false)
+    /// <summary>
+    /// Start an app by the name a user would type. Resolution order:
+    ///  1. the Start menu's Applications folder by display name ("Settings",
+    ///     "Photos", "Google Chrome") — packaged or classic, activated through
+    ///     shell:AppsFolder, which is how the Start menu itself launches them;
+    ///  2. a command the shell can run directly: execution aliases ("calc",
+    ///     "wt"), App Paths ("chrome"), full paths, and protocol URIs
+    ///     ("ms-settings:");
+    ///  3. a unique Start-menu prefix ("Snipping" → "Snipping Tool").
+    /// Returns the started process when the shell hands one back. Returns null
+    /// when the shell activated the app without a handle (every packaged app,
+    /// every protocol, and apps that hand off to a running instance) — the
+    /// caller waits for the app's window instead; see Dispatcher.HandleLaunch.
+    /// </summary>
+    public Process? Launch(string name)
     {
-        // Resolve common aliases
         var resolvedName = AppNameAliases.TryGetValue(name, out var alias) ? alias : name;
 
-        ProcessStartInfo psi;
+        // 1. Start menu display name.
+        var startApp = ExactStartApp(name) ?? (resolvedName != name ? ExactStartApp(resolvedName) : null);
+        if (startApp != null)
+            return ShellActivate("shell:AppsFolder\\" + startApp.AppUserModelId, name);
 
-        // Try to find by executable name first
-        psi = new ProcessStartInfo
-        {
-            FileName = resolvedName,
-            UseShellExecute = true,
-        };
-
+        // 2. Anything the shell can start by itself.
+        Exception? direct = null;
         try
         {
-            var proc = Process.Start(psi)
-                ?? throw new ACException(ErrorCodes.AppNotFound, $"Failed to launch: {name}");
-
-            if (wait)
-            {
-                // Wait for the app to have a main window
-                int elapsed = 0;
-                while (elapsed < 10000)
-                {
-                    proc.Refresh();
-                    if (proc.MainWindowHandle != IntPtr.Zero) break;
-                    Thread.Sleep(200);
-                    elapsed += 200;
-                }
-            }
-
-            return proc;
+            return Process.Start(new ProcessStartInfo { FileName = resolvedName, UseShellExecute = true });
         }
         catch (Exception ex) when (ex is not ACException)
         {
-            throw new ACException(ErrorCodes.AppNotFound, $"App not found: {name}. {ex.Message}");
+            direct = ex;
+        }
+
+        // 3. Unique Start-menu prefix.
+        var fuzzy = StartApps.Resolve(name);
+        if (fuzzy != null)
+            return ShellActivate("shell:AppsFolder\\" + fuzzy.AppUserModelId, name);
+
+        var suggestions = StartApps.Suggest(name);
+        var message = suggestions.Length > 0
+            ? $"App not found: {name}. Did you mean: {string.Join(", ", suggestions)}?"
+            : $"App not found: {name}. Use 'apps' to list installed apps.";
+        throw new ACException(ErrorCodes.AppNotFound, message, new { suggestions });
+    }
+
+    private static StartApp? ExactStartApp(string name) =>
+        StartApps.All().FirstOrDefault(a => a.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private static Process? ShellActivate(string target, string name)
+    {
+        try
+        {
+            return Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is not ACException)
+        {
+            throw new ACException(ErrorCodes.AppNotFound, $"Failed to launch {name}: {ex.Message}");
         }
     }
 

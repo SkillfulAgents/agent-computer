@@ -371,6 +371,24 @@ export class Bridge {
     const name = params.name as string;
     if (!name) return this.sendToNative('launch', params);
 
+    // An app that is already running is brought forward by the native launch
+    // (`open -a` on macOS, raise on Windows). Never take the CDP path for it:
+    // relaunching an Electron/Chromium app with --remote-debugging-port hands
+    // off to the running single instance, and we would then wait 15 s for a
+    // debug port that never opens. The match is checked here rather than
+    // trusting the daemon's filter, so an older daemon that ignores `app`
+    // cannot make every launch look "already running".
+    try {
+      const running = await this.sendToNative('windows', { app: name }) as { windows?: Array<{ app?: string; title?: string }> };
+      const lname = name.toLowerCase();
+      const isRunning = (running.windows ?? []).some(w => {
+        const app = (w.app ?? '').toLowerCase();
+        const title = (w.title ?? '').toLowerCase();
+        return app === lname || title === lname || title.endsWith(' - ' + lname) || title.startsWith(lname + ' ');
+      });
+      if (isRunning) return this.sendToNative('launch', params);
+    } catch { /* fall through to a normal launch */ }
+
     // Check if app is Chromium-based
     let isChromium = false;
     try {

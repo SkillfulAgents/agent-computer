@@ -223,10 +223,14 @@ public class Dispatcher
         var wait = req.GetBool("wait", false);
         var background = req.GetBool("background", false);
 
+        // "Setti" → "Settings": use the Start menu's name for matching windows
+        // whenever the user's spelling resolves to an installed app.
+        var canonical = StartApps.Resolve(name)?.Name ?? name;
+
         // Like `open -a` on macOS: an app that is already running is brought
         // forward, not started a second time. Retried launches (e.g. after a
         // client-side timeout) therefore never pile up duplicate windows.
-        var existing = _windowManager.FindWindows(name);
+        var existing = FindAppWindows(name, canonical);
         if (existing.Count > 0)
         {
             var win = existing[0];
@@ -234,19 +238,31 @@ public class Dispatcher
             return new { ok = true, name, process_id = win.ProcessId, already_running = true, window = win };
         }
 
-        // The process we start is often just a launcher (calc.exe hands off to
-        // the Store Calculator and exits; protocol handlers do the same), so
-        // its main-window handle is meaningless. Wait for a window that
-        // belongs to the app instead, and keep well inside the client's
-        // 10 s per-command timeout.
-        var proc = _appManager.Launch(name, wait: false, background);
+        // The process the shell hands back is often just a launcher (calc.exe
+        // hands off to the Store Calculator and exits), and for packaged apps
+        // and protocols there is no handle at all. Wait for the app's window
+        // instead: one that matches the name, or failing that any window that
+        // was not there before (classic apps whose windows do not carry the
+        // Start-menu name, e.g. "Google Chrome" → chrome). Stay well inside
+        // the client's 10 s per-command timeout.
+        var before = _windowManager.WindowHandles();
+        var proc = _appManager.Launch(name);
         WindowInfo? launched = null;
         if (wait)
         {
-            var deadline = DateTime.UtcNow + LaunchWindowWait;
+            // Phase 1: a window that carries the app's name. Phase 2 (only if
+            // none showed up in time): any window that was not there before.
+            // Phase 2 is deliberately late — apps like Photos put up a splash
+            // window first, and grabbing that would leave the caller holding a
+            // window that disappears a second later.
+            var start = DateTime.UtcNow;
+            var nameDeadline = start + LaunchNameWait;
+            var deadline = start + LaunchWindowWait;
             while (DateTime.UtcNow < deadline)
             {
-                var found = _windowManager.FindWindows(name);
+                var found = FindAppWindows(name, canonical);
+                if (found.Count == 0 && DateTime.UtcNow >= nameDeadline)
+                    found = _windowManager.WindowsNotIn(before);
                 if (found.Count > 0) { launched = found[0]; break; }
                 Thread.Sleep(150);
             }
@@ -256,12 +272,22 @@ public class Dispatcher
         {
             ok = true,
             name,
-            process_id = launched?.ProcessId ?? proc.Id,
+            process_id = launched?.ProcessId ?? proc?.Id ?? 0,
             window = launched,
         };
     }
 
     private static readonly TimeSpan LaunchWindowWait = TimeSpan.FromSeconds(7);
+    private static readonly TimeSpan LaunchNameWait = TimeSpan.FromSeconds(4);
+
+    /// <summary>Windows for an app by the name given, then by its Start-menu name.</summary>
+    private List<WindowInfo> FindAppWindows(string name, string canonical)
+    {
+        var found = _windowManager.FindWindows(name);
+        if (found.Count == 0 && !canonical.Equals(name, StringComparison.OrdinalIgnoreCase))
+            found = _windowManager.FindWindows(canonical);
+        return found;
+    }
 
     private object HandleLaunchCDP(RPCRequest req)
     {
@@ -286,23 +312,46 @@ public class Dispatcher
         {
             // Not a process name (UWP "Calculator" runs as CalculatorApp inside
             // ApplicationFrameHost): close the app's windows instead.
-            var windows = _windowManager.FindWindows(name);
+            var canonical = StartApps.Resolve(name)?.Name ?? name;
+            var windows = FindAppWindows(name, canonical);
             if (windows.Count == 0)
                 throw new ACException(ErrorCodes.AppNotFound, $"App not running: {name}");
-            foreach (var win in windows)
+
+            if (force)
             {
-                if (force)
+                foreach (var win in windows)
                 {
                     try { Process.GetProcessById(win.ProcessId).Kill(); } catch { }
                 }
-                else
+                return new { ok = true, closed = windows.Count };
+            }
+
+            // WM_CLOSE, then confirm. An app that is still starting up ignores
+            // the first close; send it again once before giving up.
+            CloseAll(windows);
+            var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(2500);
+            bool retried = false;
+            List<WindowInfo> remaining;
+            while ((remaining = FindAppWindows(name, canonical)).Count > 0 && DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(200);
+                if (!retried && DateTime.UtcNow > deadline - TimeSpan.FromMilliseconds(1300))
                 {
-                    _windowManager.Close(win.Ref);
+                    retried = true;
+                    CloseAll(remaining);
                 }
             }
-            matched = windows.Count;
+            return new { ok = true, closed = windows.Count - remaining.Count, remaining = remaining.Count };
         }
         return new { ok = true, closed = matched };
+    }
+
+    private void CloseAll(IEnumerable<WindowInfo> windows)
+    {
+        foreach (var win in windows)
+        {
+            try { _windowManager.Close(win.Ref); } catch { }
+        }
     }
 
     private object HandleHide(RPCRequest req)
@@ -362,7 +411,7 @@ public class Dispatcher
     private object HandleWindows(RPCRequest req)
     {
         var app = req.GetString("app");
-        var windows = _windowManager.ListWindows(string.IsNullOrEmpty(app) ? null : app);
+        var windows = string.IsNullOrEmpty(app) ? _windowManager.ListWindows() : _windowManager.FindWindows(app);
         return new { windows };
     }
 

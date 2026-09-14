@@ -25,6 +25,9 @@ internal static class PackagedApps
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetPackageFullName(IntPtr hProcess, ref uint packageFullNameLength, StringBuilder? packageFullName);
 
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetPackageFamilyName(IntPtr hProcess, ref uint packageFamilyNameLength, StringBuilder? packageFamilyName);
+
     // pid → friendly name (or null). Package identity never changes for a
     // live pid, and pids are only recycled after exit, so cache per (pid, start time).
     private static readonly Dictionary<(int pid, long started), string?> s_cache = new();
@@ -50,7 +53,29 @@ internal static class PackagedApps
         finally { CloseHandle(h); }
     }
 
-    /// <summary>Friendly app name for a packaged process, or null when unpackaged or unmappable.</summary>
+    /// <summary>Package family for a process, e.g. "Microsoft.WindowsCalculator_8wekyb3d8bbwe", or null if unpackaged.</summary>
+    public static string? PackageFamily(int pid)
+    {
+        var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)pid);
+        if (h == IntPtr.Zero) return null;
+        try
+        {
+            uint len = 0;
+            var rc = GetPackageFamilyName(h, ref len, null);
+            if (rc == APPMODEL_ERROR_NO_PACKAGE || len == 0) return null;
+            var sb = new StringBuilder((int)len);
+            rc = GetPackageFamilyName(h, ref len, sb);
+            return rc == 0 ? sb.ToString() : null;
+        }
+        finally { CloseHandle(h); }
+    }
+
+    /// <summary>
+    /// Friendly app name for a packaged process, or null when unpackaged or
+    /// unmappable. The Start menu's localized display name wins (it is what
+    /// the user sees and what `apps` lists); the curated table is a fallback
+    /// for packages without a Start entry.
+    /// </summary>
     public static string? FriendlyName(int pid, long processStartTicks)
     {
         var key = (pid, processStartTicks);
@@ -61,8 +86,17 @@ internal static class PackagedApps
         string? name = null;
         try
         {
-            var package = PackageName(pid);
-            if (package != null) name = AppManager.KnownFriendlyAppxName(package);
+            var family = PackageFamily(pid);
+            if (family != null)
+            {
+                name = StartApps.NameForPackageFamily(family);
+                if (name == null)
+                {
+                    var underscore = family.IndexOf('_');
+                    var package = underscore > 0 ? family[..underscore] : family;
+                    name = AppManager.KnownFriendlyAppxName(package);
+                }
+            }
         }
         catch { }
         lock (s_cache)
