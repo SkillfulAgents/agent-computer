@@ -47,6 +47,9 @@ public class AppManager
     [DllImport("user32.dll")]
     private static extern int GetWindowTextLength(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hWnd, char[] lpString, int nMaxCount);
+
     [DllImport("user32.dll")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
@@ -54,51 +57,54 @@ public class AppManager
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
 
-    public List<AppInfo> ListApps(bool runningOnly = false)
+    public List<AppInfo> ListApps(bool runningOnly, IReadOnlyList<WindowInfo> windows)
     {
         var apps = new Dictionary<string, AppInfo>(StringComparer.OrdinalIgnoreCase);
 
-        // Get active window PID
+        // Get active window PID (the frame host's pid for an active UWP app,
+        // so compare against the frame's pid as well as the app's).
         var foreground = GetForegroundWindow();
         GetWindowThreadProcessId(foreground, out uint activePid);
-
-        // Collect PIDs that own visible windows
-        var pidsWithWindows = new HashSet<uint>();
-        EnumWindows((hWnd, _) =>
+        int activeAppPid = 0;
+        if (activePid != 0)
         {
-            if (!IsWindowVisible(hWnd)) return true;
-            if (GetWindowTextLength(hWnd) == 0) return true;
-            int exStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
-            if ((exStyle & WS_EX_TOOLWINDOW) != 0) return true;
+            var active = windows.FirstOrDefault(w => w.ProcessId == (int)activePid);
+            activeAppPid = active?.ProcessId ?? 0;
+            if (activeAppPid == 0)
+            {
+                // Foreground is an ApplicationFrameHost frame: find the window whose
+                // frame this is by matching the title.
+                var len = GetWindowTextLength(foreground);
+                if (len > 0)
+                {
+                    var buf = new char[len + 1];
+                    GetWindowText(foreground, buf, buf.Length);
+                    var title = new string(buf, 0, len);
+                    activeAppPid = windows.FirstOrDefault(w => w.Title == title)?.ProcessId ?? 0;
+                }
+            }
+        }
 
-            GetWindowThreadProcessId(hWnd, out uint pid);
-            pidsWithWindows.Add(pid);
-            return true;
-        }, IntPtr.Zero);
-
-        // Running apps (always included)
-        var runningNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var proc in Process.GetProcesses())
+        // Running apps (always included): one entry per app that owns a window.
+        foreach (var win in windows)
         {
+            if (apps.ContainsKey(win.App)) continue;
+            bool chromium = false;
             try
             {
-                if (proc.SessionId == 0) continue;
-                if (!pidsWithWindows.Contains((uint)proc.Id)) continue;
-
-                string name = proc.ProcessName;
-                if (apps.ContainsKey(name)) continue;
-                runningNames.Add(name);
-
-                apps[name] = new AppInfo
-                {
-                    Name = name,
-                    ProcessId = proc.Id,
-                    IsActive = proc.Id == (int)activePid,
-                    IsHidden = false,
-                    IsChromium = IsChromiumApp(proc),
-                };
+                using var proc = Process.GetProcessById(win.ProcessId);
+                chromium = IsChromiumApp(proc);
             }
             catch { }
+
+            apps[win.App] = new AppInfo
+            {
+                Name = win.App,
+                ProcessId = win.ProcessId,
+                IsActive = win.ProcessId == activeAppPid || win.ProcessId == (int)activePid,
+                IsHidden = false,
+                IsChromium = chromium,
+            };
         }
 
         // All installed apps (from Start Menu shortcuts and registry)
@@ -207,12 +213,18 @@ public class AppManager
         return names.ToList();
     }
 
-    private static string? FriendlyAppxName(string packageName)
+    /// <summary>
+    /// Friendly name from the curated table only (no heuristics). Used for
+    /// window/app naming, where a wrong guess ("slackdesktop") is worse than
+    /// the plain process name ("Slack").
+    /// </summary>
+    // Map known package names to friendly names
+    private static readonly Dictionary<string, string> KnownPackageNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        // Map known package names to friendly names
-        var knownMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
             { "Microsoft.WindowsCalculator", "Calculator" },
+            { "windows.immersivecontrolpanel", "Settings" },
+            { "com.tinyspeck.slackdesktop", "Slack" },
+            { "SpotifyAB.SpotifyMusic", "Spotify" },
             { "Microsoft.WindowsCamera", "Camera" },
             { "Microsoft.WindowsAlarms", "Alarms & Clock" },
             { "Microsoft.WindowsMaps", "Maps" },
@@ -228,7 +240,14 @@ public class AppManager
             { "Microsoft.ZuneVideo", "Movies & TV" },
             { "Microsoft.MicrosoftEdge.Stable", "Microsoft Edge" },
             { "Microsoft.OutlookForWindows", "Outlook" },
-        };
+    };
+
+    internal static string? KnownFriendlyAppxName(string packageName) =>
+        KnownPackageNames.TryGetValue(packageName, out var friendly) ? friendly : null;
+
+    internal static string? FriendlyAppxName(string packageName)
+    {
+        var knownMappings = KnownPackageNames;
 
         if (knownMappings.TryGetValue(packageName, out var friendly))
             return friendly;
@@ -347,10 +366,13 @@ public class AppManager
         return null;
     }
 
-    public void Quit(string name, bool force = false)
+    /// <returns>Number of processes matched by name.</returns>
+    public int Quit(string name, bool force = false)
     {
+        int matched = 0;
         foreach (var proc in Process.GetProcessesByName(name))
         {
+            matched++;
             try
             {
                 if (force)
@@ -364,6 +386,7 @@ public class AppManager
         // Clean up CDP tracking
         _cdpPorts.Remove(name);
         _cdpProcesses.Remove(name);
+        return matched;
     }
 
     public bool IsChromiumApp(string name)

@@ -210,7 +210,7 @@ public class Dispatcher
     private object HandleApps(RPCRequest req)
     {
         var running = req.GetBool("running", false);
-        var apps = _appManager.ListApps(running);
+        var apps = _appManager.ListApps(running, _windowManager.ListWindows());
         return new { apps };
     }
 
@@ -222,10 +222,46 @@ public class Dispatcher
 
         var wait = req.GetBool("wait", false);
         var background = req.GetBool("background", false);
-        var proc = _appManager.Launch(name, wait, background);
 
-        return new { ok = true, name, process_id = proc.Id };
+        // Like `open -a` on macOS: an app that is already running is brought
+        // forward, not started a second time. Retried launches (e.g. after a
+        // client-side timeout) therefore never pile up duplicate windows.
+        var existing = _windowManager.FindWindows(name);
+        if (existing.Count > 0)
+        {
+            var win = existing[0];
+            if (!background) _windowManager.Raise(win.Ref);
+            return new { ok = true, name, process_id = win.ProcessId, already_running = true, window = win };
+        }
+
+        // The process we start is often just a launcher (calc.exe hands off to
+        // the Store Calculator and exits; protocol handlers do the same), so
+        // its main-window handle is meaningless. Wait for a window that
+        // belongs to the app instead, and keep well inside the client's
+        // 10 s per-command timeout.
+        var proc = _appManager.Launch(name, wait: false, background);
+        WindowInfo? launched = null;
+        if (wait)
+        {
+            var deadline = DateTime.UtcNow + LaunchWindowWait;
+            while (DateTime.UtcNow < deadline)
+            {
+                var found = _windowManager.FindWindows(name);
+                if (found.Count > 0) { launched = found[0]; break; }
+                Thread.Sleep(150);
+            }
+        }
+
+        return new
+        {
+            ok = true,
+            name,
+            process_id = launched?.ProcessId ?? proc.Id,
+            window = launched,
+        };
     }
+
+    private static readonly TimeSpan LaunchWindowWait = TimeSpan.FromSeconds(7);
 
     private object HandleLaunchCDP(RPCRequest req)
     {
@@ -245,8 +281,28 @@ public class Dispatcher
             throw new ACException(ErrorCodes.InvalidParams, "Missing app name");
 
         var force = req.GetBool("force", false);
-        _appManager.Quit(name, force);
-        return new { ok = true };
+        int matched = _appManager.Quit(name, force);
+        if (matched == 0)
+        {
+            // Not a process name (UWP "Calculator" runs as CalculatorApp inside
+            // ApplicationFrameHost): close the app's windows instead.
+            var windows = _windowManager.FindWindows(name);
+            if (windows.Count == 0)
+                throw new ACException(ErrorCodes.AppNotFound, $"App not running: {name}");
+            foreach (var win in windows)
+            {
+                if (force)
+                {
+                    try { Process.GetProcessById(win.ProcessId).Kill(); } catch { }
+                }
+                else
+                {
+                    _windowManager.Close(win.Ref);
+                }
+            }
+            matched = windows.Count;
+        }
+        return new { ok = true, closed = matched };
     }
 
     private object HandleHide(RPCRequest req)
@@ -256,7 +312,7 @@ public class Dispatcher
         if (string.IsNullOrEmpty(name))
             throw new ACException(ErrorCodes.InvalidParams, "Missing app name");
 
-        foreach (var win in _windowManager.ListWindows(name))
+        foreach (var win in _windowManager.FindWindows(name))
             _windowManager.Minimize(win.Ref);
 
         return new { ok = true };
@@ -268,7 +324,7 @@ public class Dispatcher
         if (string.IsNullOrEmpty(name))
             throw new ACException(ErrorCodes.InvalidParams, "Missing app name");
 
-        foreach (var win in _windowManager.ListWindows(name))
+        foreach (var win in _windowManager.FindWindows(name))
             _windowManager.Raise(win.Ref);
 
         return new { ok = true };
@@ -280,7 +336,7 @@ public class Dispatcher
         if (string.IsNullOrEmpty(name))
             throw new ACException(ErrorCodes.InvalidParams, "Missing app name");
 
-        var windows = _windowManager.ListWindows(name);
+        var windows = _windowManager.FindWindows(name);
         if (windows.Count == 0)
             throw new ACException(ErrorCodes.AppNotFound, $"No windows found for app: {name}");
 
@@ -323,19 +379,8 @@ public class Dispatcher
         }
         else if (!string.IsNullOrEmpty(appName))
         {
-            // Try matching by process name first
-            var windows = _windowManager.ListWindows(appName);
-            windowInfo = windows.FirstOrDefault();
-
-            // Fallback: match by window title (handles UWP apps hosted in ApplicationFrameHost)
-            if (windowInfo == null)
-            {
-                var allWindows = _windowManager.ListWindows();
-                windowInfo = allWindows.FirstOrDefault(w =>
-                    w.Title.Equals(appName, StringComparison.OrdinalIgnoreCase) ||
-                    w.Title.StartsWith(appName + " ", StringComparison.OrdinalIgnoreCase) ||
-                    w.Title.StartsWith(appName + " -", StringComparison.OrdinalIgnoreCase));
-            }
+            // App name, raw process name, or (UWP frames) window title.
+            windowInfo = _windowManager.FindWindows(appName).FirstOrDefault();
 
             if (windowInfo != null)
                 windowRef = windowInfo.Ref;
@@ -466,7 +511,7 @@ public class Dispatcher
         }
         else if (!string.IsNullOrEmpty(appName))
         {
-            var windows = _windowManager.ListWindows(appName);
+            var windows = _windowManager.FindWindows(appName);
             if (windows.Count > 0)
             {
                 windowInfo = windows[0];
@@ -821,7 +866,7 @@ public class Dispatcher
         AutomationElement? element = null;
         if (!string.IsNullOrEmpty(appName))
         {
-            var windows = _windowManager.ListWindows(appName);
+            var windows = _windowManager.FindWindows(appName);
             if (windows.Count > 0)
                 element = _windowManager.GetWindowAutomationElement(windows[0].Ref);
             if (element == null)

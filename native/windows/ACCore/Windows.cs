@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
 using ACCore.Uia;
 
 namespace ACCore;
@@ -8,8 +9,13 @@ public class WindowInfo
 {
     public string Ref { get; set; } = "";
     public string Title { get; set; } = "";
+    /// <summary>App name as the user knows it ("Calculator", "Settings", "chrome"); see PackagedApps.</summary>
     public string App { get; set; } = "";
+    /// <summary>Pid of the app itself — for UWP apps the CoreWindow's process, not ApplicationFrameHost.</summary>
     public int ProcessId { get; set; }
+    /// <summary>Raw process name ("CalculatorApp"); accepted anywhere an app name is, but not part of the wire format.</summary>
+    [JsonIgnore]
+    public string ProcessName { get; set; } = "";
     public int[] Bounds { get; set; } = [0, 0, 0, 0]; // [x, y, w, h]
     public bool Minimized { get; set; }
     public bool Hidden { get; set; }
@@ -67,6 +73,16 @@ public class WindowManager
     private static extern IntPtr GetShellWindow();
 
     [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr hWnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
+    private const int DWMWA_CLOAKED = 14;
+    private const string CoreWindowClass = "Windows.UI.Core.CoreWindow";
+    private const string FrameHostProcess = "ApplicationFrameHost";
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, char[] lpClassName, int nMaxCount);
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
@@ -102,6 +118,10 @@ public class WindowManager
     {
         var windows = new List<WindowInfo>();
         var shellWindow = GetShellWindow();
+        // Top-level CoreWindows of UWP apps that are NOT currently parented into
+        // their ApplicationFrameHost frame (inactive apps). Computed on demand,
+        // once per listing, to pair frame windows with their app process.
+        var looseCoreWindows = new Lazy<List<(string title, uint pid)>>(ListLooseCoreWindows);
 
         EnumWindows((hWnd, _) =>
         {
@@ -121,23 +141,36 @@ public class WindowManager
             var title = new string(titleBuf, 0, titleLen);
 
             GetWindowThreadProcessId(hWnd, out uint pid);
+            bool minimized = IsIconic(hWnd);
 
-            string appName;
-            try
+            // DWM-cloaked windows are not on screen: the loose CoreWindow twin
+            // of every UWP frame ("Settings" showing up twice), the input-
+            // experience host, and frames of suspended apps. Minimized
+            // windows are cloaked too, and those the user does expect to see.
+            if (!minimized && IsCloaked(hWnd)) return true;
+
+            // UWP apps run inside ApplicationFrameHost; the app itself owns a
+            // CoreWindow. Report the app, not its host.
+            int appPid = (int)pid;
+            var (processName, started) = ProcessIdentity(appPid);
+            if (processName.Equals(FrameHostProcess, StringComparison.OrdinalIgnoreCase))
             {
-                var proc = Process.GetProcessById((int)pid);
-                appName = proc.ProcessName;
-            }
-            catch
-            {
-                appName = "Unknown";
+                var corePid = FindHostedAppPid(hWnd, title, looseCoreWindows);
+                if (corePid != 0)
+                {
+                    appPid = corePid;
+                    (processName, started) = ProcessIdentity(appPid);
+                }
             }
 
-            if (appFilter != null && !appName.Equals(appFilter, StringComparison.OrdinalIgnoreCase))
+            string appName = PackagedApps.FriendlyName(appPid, started) ?? processName;
+
+            if (appFilter != null
+                && !appName.Equals(appFilter, StringComparison.OrdinalIgnoreCase)
+                && !processName.Equals(appFilter, StringComparison.OrdinalIgnoreCase))
                 return true;
 
             GetWindowRect(hWnd, out RECT rect);
-            bool minimized = IsIconic(hWnd);
 
             // Filter out tiny windows (< 50x50) unless minimized
             int w = rect.Right - rect.Left;
@@ -173,7 +206,8 @@ public class WindowManager
                 Ref = windowRef,
                 Title = title,
                 App = appName,
-                ProcessId = (int)pid,
+                ProcessName = processName,
+                ProcessId = appPid,
                 Bounds = [rect.Left, rect.Top, w, h],
                 Minimized = minimized,
                 Hidden = false,
@@ -186,6 +220,99 @@ public class WindowManager
         return windows;
     }
 
+    /// <summary>
+    /// Windows that belong to <paramref name="name"/>: the friendly app name,
+    /// the raw process name, or (for launch/grab by a name the user typed)
+    /// the window title itself, e.g. "Calculator" for a UWP frame.
+    /// </summary>
+    public List<WindowInfo> FindWindows(string name)
+    {
+        var all = ListWindows();
+        var byApp = all.Where(w =>
+            w.App.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+            w.ProcessName.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (byApp.Count > 0) return byApp;
+
+        return all.Where(w =>
+            w.Title.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+            w.Title.StartsWith(name + " ", StringComparison.OrdinalIgnoreCase) ||
+            w.Title.StartsWith(name + " -", StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private static bool IsCloaked(IntPtr hWnd)
+    {
+        try
+        {
+            return DwmGetWindowAttribute(hWnd, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0;
+        }
+        catch { return false; }
+    }
+
+    private static (string name, long started) ProcessIdentity(int pid)
+    {
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            long started;
+            try { started = proc.StartTime.Ticks; } catch { started = 0; }
+            return (proc.ProcessName, started);
+        }
+        catch
+        {
+            return ("Unknown", 0);
+        }
+    }
+
+    /// <summary>
+    /// Pid of the UWP app hosted in an ApplicationFrameHost frame window, or 0.
+    /// While the app is active its CoreWindow is a child of the frame; while
+    /// inactive the CoreWindow is a separate (cloaked) top-level window that
+    /// carries the same title.
+    /// </summary>
+    private static int FindHostedAppPid(IntPtr frameHwnd, string title, Lazy<List<(string title, uint pid)>> looseCoreWindows)
+    {
+        uint found = 0;
+        EnumChildWindows(frameHwnd, (child, _) =>
+        {
+            if (ClassNameOf(child) != CoreWindowClass) return true;
+            GetWindowThreadProcessId(child, out found);
+            return false;
+        }, IntPtr.Zero);
+        if (found != 0) return (int)found;
+
+        foreach (var (coreTitle, corePid) in looseCoreWindows.Value)
+        {
+            if (coreTitle.Equals(title, StringComparison.Ordinal)) return (int)corePid;
+        }
+        return 0;
+    }
+
+    private static List<(string title, uint pid)> ListLooseCoreWindows()
+    {
+        var list = new List<(string, uint)>();
+        EnumWindows((hWnd, _) =>
+        {
+            if (ClassNameOf(hWnd) != CoreWindowClass) return true;
+            GetWindowThreadProcessId(hWnd, out uint pid);
+            var (name, _) = ProcessIdentity((int)pid);
+            if (name.Equals(FrameHostProcess, StringComparison.OrdinalIgnoreCase)) return true;
+            int len = GetWindowTextLength(hWnd);
+            if (len == 0) return true;
+            var buf = new char[len + 1];
+            GetWindowText(hWnd, buf, buf.Length);
+            list.Add((new string(buf, 0, len), pid));
+            return true;
+        }, IntPtr.Zero);
+        return list;
+    }
+
+    private static string ClassNameOf(IntPtr hWnd)
+    {
+        var buf = new char[256];
+        int n = GetClassName(hWnd, buf, buf.Length);
+        return n > 0 ? new string(buf, 0, n) : string.Empty;
+    }
+
     public IntPtr? ResolveWindowHandle(string refOrApp)
     {
         // Direct ref lookup
@@ -196,6 +323,7 @@ public class WindowManager
         var windows = ListWindows();
         var match = windows.FirstOrDefault(w =>
             w.App.Equals(refOrApp, StringComparison.OrdinalIgnoreCase) ||
+            w.ProcessName.Equals(refOrApp, StringComparison.OrdinalIgnoreCase) ||
             w.Ref == refOrApp);
 
         if (match != null && _refToHandle.TryGetValue(match.Ref, out var h))

@@ -51,6 +51,23 @@ public class AppsTests
         Assert.Equal(expected, InvokeFriendlyAppxName(packageName));
     }
 
+    // ==== KnownFriendlyAppxName: curated table only, used for window/app naming ====
+    [Theory]
+    [InlineData("windows.immersivecontrolpanel", "Settings")]
+    [InlineData("com.tinyspeck.slackdesktop", "Slack")]
+    [InlineData("Microsoft.WindowsCalculator", "Calculator")]
+    public void KnownFriendlyAppxName_CuratedPackages(string packageName, string expected)
+    {
+        Assert.Equal(expected, AppManager.KnownFriendlyAppxName(packageName));
+    }
+
+    [Fact]
+    public void KnownFriendlyAppxName_DoesNotGuess()
+    {
+        // The heuristic would say "Discord"; for live windows the process name is the safer default.
+        Assert.Null(AppManager.KnownFriendlyAppxName("Discord.Discord"));
+    }
+
     // ==== FriendlyAppxName: unknown package extracts last part ====
 
     [Fact]
