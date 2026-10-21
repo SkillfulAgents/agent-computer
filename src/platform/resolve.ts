@@ -3,9 +3,14 @@ import { join, dirname } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 
-// ESM: use import.meta.url directly (CJS build patches this line — see scripts/fix-cjs-resolve.js)
-// @ts-ignore — import.meta.url is valid in ESM; CJS tsconfig rejects it but post-build script fixes it
-const _dirname = dirname(fileURLToPath(import.meta.url));
+// Computed on first use, not at import: runtimes without a file URL (Cloudflare
+// Workers) leave import.meta.url undefined, and importing the package there must not throw.
+function moduleDir(): string {
+  // ESM: use import.meta.url directly (CJS build patches this line — see scripts/fix-cjs-resolve.js)
+  // @ts-ignore — import.meta.url is valid in ESM; CJS tsconfig rejects it but post-build script fixes it
+  const _dirname = dirname(fileURLToPath(import.meta.url));
+  return _dirname;
+}
 
 /**
  * Find the package root by walking up from __dirname until we find a real package.json
@@ -13,6 +18,7 @@ const _dirname = dirname(fileURLToPath(import.meta.url));
  * Works whether running from source (src/platform/) or compiled (dist/src/platform/).
  */
 function findProjectRoot(): string {
+  const _dirname = moduleDir();
   let dir = _dirname;
   for (let i = 0; i < 10; i++) {
     const pkgPath = join(dir, 'package.json');
